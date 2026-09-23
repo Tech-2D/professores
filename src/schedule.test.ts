@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isDuringSlot, isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
+import { isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
 import type { Schedule } from './types'
 
 const schedule: Schedule = {
@@ -23,13 +23,6 @@ describe('schedule helpers', () => {
   it('identifica uma aula acontecendo agora', () => {
     expect(isHappeningNow(schedule, new Date(2026, 8, 21, 8, 45))).toBe(true)
     expect(isHappeningNow(schedule, new Date(2026, 8, 21, 9, 30))).toBe(false)
-  })
-
-  it('marca os horários intermediários, mas não o horário de término', () => {
-    const lesson = { ...schedule, startTime: '07:50', endTime: '08:40' }
-    expect(isDuringSlot(lesson, '07:50')).toBe(true)
-    expect(isDuringSlot(lesson, '08:20')).toBe(true)
-    expect(isDuringSlot(lesson, '08:40')).toBe(false)
   })
 
   it('busca sem diferenciar acentos ou maiúsculas', () => {

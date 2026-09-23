@@ -33,7 +33,7 @@ import {
 import { auth, db } from './firebase'
 import { CLASS_NAMES } from './classNames'
 import { importDocumentId, parseSchedulesJson } from './importSchedules'
-import { isDuringSlot, isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
+import { isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
 import { WEEKDAYS, type Schedule, type ScheduleInput } from './types'
 
 const emptyForm: ScheduleInput = {
@@ -131,11 +131,7 @@ function App() {
     .filter((weekday) => view === 'now' || view === 'today'
       ? weekday.value === now.getDay()
       : !dayFilter || weekday.value === dayFilter)
-  const activeTimeSlots = [...new Set(schedules.filter((item) => item.active).map((item) => item.startTime))].sort((a, b) => timeToMinutes(a) - timeToMinutes(b))
-  const visibleTimes = visibleSchedules.map((item) => timeToMinutes(item.startTime))
-  const earliestTime = Math.min(...visibleTimes)
-  const latestEndTime = Math.max(...visibleSchedules.map((item) => timeToMinutes(item.endTime)))
-  const timeSlots = activeTimeSlots.filter((time) => timeToMinutes(time) >= earliestTime && timeToMinutes(time) < latestEndTime)
+  const timeSlots = [...new Set(visibleSchedules.map((item) => item.startTime))].sort((a, b) => timeToMinutes(a) - timeToMinutes(b))
 
   const openAdmin = () => {
     window.location.hash = 'admin'
@@ -214,7 +210,7 @@ function App() {
             : <div className="timetable-scroll" role="region" aria-label="Grade de horários" tabIndex={0}>
                 <table className="timetable">
                   <thead><tr><th scope="col">Hora</th>{displayedDays.map((day) => <th scope="col" key={day.value}><span>{day.short}</span><small>{day.label}</small></th>)}</tr></thead>
-                  <tbody>{timeSlots.map((time) => <tr key={time}><th scope="row">{time}</th>{displayedDays.map((day) => <td key={day.value}>{visibleSchedules.filter((item) => item.dayOfWeek === day.value && isDuringSlot(item, time)).map((item) => <ScheduleCard key={item.id} schedule={item} slotTime={time} now={now} />)}</td>)}</tr>)}</tbody>
+                  <tbody>{timeSlots.map((time) => <tr key={time}><th scope="row">{time}</th>{displayedDays.map((day) => <td key={day.value}>{visibleSchedules.filter((item) => item.dayOfWeek === day.value && item.startTime === time).map((item) => <ScheduleCard key={item.id} schedule={item} now={now} />)}</td>)}</tr>)}</tbody>
                 </table>
               </div>}
         </section>
@@ -233,16 +229,15 @@ function App() {
   )
 }
 
-function ScheduleCard({ schedule, slotTime, now }: { schedule: Schedule; slotTime: string; now: Date }) {
+function ScheduleCard({ schedule, now }: { schedule: Schedule; now: Date }) {
   const happening = isHappeningNow(schedule, now)
-  const continued = slotTime !== schedule.startTime
   const color = ['#06b6b9', '#69d71b', '#2782e6', '#f3ae45'][[...schedule.subject].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 4]
   return (
-    <article className={`lesson-block ${continued ? 'continued' : ''} ${happening ? 'happening' : ''}`} style={{ borderLeftColor: color }}>
+    <article className={`lesson-block ${happening ? 'happening' : ''}`} style={{ borderLeftColor: color }}>
       <div className="lesson-heading"><strong>{schedule.subject}</strong>{happening && <span>Agora</span>}</div>
       <p className="lesson-teacher">{schedule.professor}</p>
-      <p className="lesson-meta">{continued ? `Continua até ${schedule.endTime}` : `${schedule.startTime}–${schedule.endTime}`} · {schedule.className}</p>
-      {!continued && (schedule.floor || schedule.roomDescription) && <p className="lesson-location">{[schedule.floor, schedule.roomDescription].filter(Boolean).join(' · ')}</p>}
+      <p className="lesson-meta">{schedule.startTime}–{schedule.endTime} · {schedule.className}</p>
+      {(schedule.floor || schedule.roomDescription) && <p className="lesson-location">{[schedule.floor, schedule.roomDescription].filter(Boolean).join(' · ')}</p>}
     </article>
   )
 }

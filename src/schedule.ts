@@ -5,11 +5,6 @@ export function timeToMinutes(time: string) {
   return hours * 60 + minutes
 }
 
-export function isDuringSlot(schedule: Schedule, slotTime: string) {
-  const slot = timeToMinutes(slotTime)
-  return slot >= timeToMinutes(schedule.startTime) && slot < timeToMinutes(schedule.endTime)
-}
-
 export function isHappeningNow(schedule: Schedule, now = new Date()) {
   if (!schedule.active || schedule.dayOfWeek !== now.getDay()) return false
   const current = now.getHours() * 60 + now.getMinutes()
