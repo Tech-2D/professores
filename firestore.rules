@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     function isProfessorAdmin() {
-      return isSignedIn() && adminData().role == 'admin';
+      return isSignedIn() && adminData().role in ['admin', 'superadmin'];
     }
 
     function isSuperAdmin() {

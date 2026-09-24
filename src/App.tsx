@@ -99,7 +99,7 @@ function App() {
 
       try {
         const adminRecord = await getDoc(doc(db, 'admins', currentUser.uid))
-        if (currentRequest === requestId) setIsAdmin(adminRecord.data()?.role === 'admin')
+        if (currentRequest === requestId) setIsAdmin(['admin', 'superadmin'].includes(adminRecord.data()?.role))
       } catch {
         if (currentRequest === requestId) setIsAdmin(false)
       } finally {
@@ -437,7 +437,7 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
           </form>
         ) : !isAdmin ? (
           <div className="unauthorized">
-            <DoorOpen /><h3>Esta conta não tem permissão</h3><p>Confira se há um documento com o UID desta conta em <code>admins</code> e o campo <code>role</code> igual a <code>admin</code>.</p>
+            <DoorOpen /><h3>Esta conta não tem permissão</h3><p>Confira se há um documento com o UID desta conta em <code>admins</code> e o campo <code>role</code> igual a <code>admin</code> ou <code>superadmin</code>.</p>
             <button className="secondary-button" onClick={() => signOut(auth)}>Sair</button>
           </div>
         ) : (

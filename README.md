@@ -16,10 +16,10 @@ Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase centr
 1. No Console do Firebase, abra **Authentication > Sign-in method** e habilite **E-mail/senha**.
 2. Em **Authentication > Users**, crie cada usuário administrador com seu próprio e-mail e senha. A senha é definida apenas no Firebase e nunca vai para o código ou para o Firestore.
 3. Copie o UID de cada usuário.
-4. No Firestore, crie a coleção `admins`. Para cada usuário, crie um documento cujo **ID seja o UID copiado**, com o campo `{ "role": "admin" }`.
+4. No Firestore, crie a coleção `admins`. Para cada usuário, crie um documento cujo **ID seja o UID copiado**, com o campo `{ "role": "admin" }`. Para administrar também a Agenda, use `{ "role": "superadmin" }`.
 5. Publique as regras deste repositório com `firebase deploy --only firestore:rules` ou cole o conteúdo de `firestore.rules` no Console do Firebase.
 
-> Variáveis `VITE_*` são incorporadas ao JavaScript público. Por isso, nunca coloque senhas em `.env`, no Firestore ou nos secrets do GitHub. O site pede e-mail e senha, valida pelo Firebase Authentication e só libera o painel se o UID autenticado tiver `role: "admin"` em `admins`.
+> Variáveis `VITE_*` são incorporadas ao JavaScript público. Por isso, nunca coloque senhas em `.env`, no Firestore ou nos secrets do GitHub. O site pede e-mail e senha, valida pelo Firebase Authentication e só libera o painel se o UID autenticado tiver `role: "admin"` ou `role: "superadmin"` em `admins`.
 
 ## Rodar localmente
 
