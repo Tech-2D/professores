@@ -1,6 +1,7 @@
 import { type ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight,
+  CalendarDays,
   Check,
   DoorOpen,
   Edit3,
@@ -8,8 +9,10 @@ import {
   LoaderCircle,
   LogOut,
   MapPin,
+  Menu,
   Plus,
   Search,
+  Settings,
   Trash2,
   Upload,
   UserRound,
@@ -35,6 +38,19 @@ import { CLASS_NAMES } from './classNames'
 import { importDocumentId, parseSchedulesJson } from './importSchedules'
 import { isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
 import { WEEKDAYS, type Schedule, type ScheduleInput } from './types'
+import {
+  NEON_COLORS,
+  NEON_COLOR_LABELS,
+  NEON_COLOR_SWATCHES,
+  THEMES,
+  THEME_LABELS,
+  readStoredNeon,
+  readStoredTheme,
+  storeNeon,
+  storeTheme,
+  type NeonColor,
+  type Theme,
+} from './theme'
 
 const emptyForm: ScheduleInput = {
   professor: '',
@@ -60,6 +76,10 @@ function App() {
   const [dayFilter, setDayFilter] = useState(0)
   const [view, setView] = useState<View>('all')
   const [adminOpen, setAdminOpen] = useState(window.location.hash === '#admin')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [theme, setThemeState] = useState<Theme>(readStoredTheme)
+  const [neon, setNeonState] = useState<NeonColor>(readStoredNeon)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -69,6 +89,22 @@ function App() {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.dataset.neon = neon
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'neon' ? '#f4fbff' : '#0e35be')
+  }, [theme, neon])
+
+  function selectTheme(value: Theme) {
+    setThemeState(value)
+    storeTheme(value)
+  }
+
+  function selectNeon(value: NeonColor) {
+    setNeonState(value)
+    storeNeon(value)
+  }
 
   useEffect(() => {
     const schedulesQuery = isAdmin
@@ -160,6 +196,16 @@ function App() {
           <span className="brand-mark"><MapPin size={21} strokeWidth={2.3} /></span>
           <span>Cadê o professor?</span>
         </a>
+        <button
+          type="button"
+          className="menu-trigger"
+          aria-label="Abrir menu"
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(true)}
+        >
+          <Menu size={22} strokeWidth={2.3} aria-hidden="true" />
+        </button>
       </header>
 
       <main id="inicio" className="main-content">
@@ -216,6 +262,23 @@ function App() {
         </section>
       </main>
 
+      {menuOpen && (
+        <SideMenu
+          theme={theme}
+          onClose={() => setMenuOpen(false)}
+          onOpenConfig={() => { setMenuOpen(false); setConfigOpen(true) }}
+        />
+      )}
+      {configOpen && (
+        <ConfigDialog
+          theme={theme}
+          neon={neon}
+          onSetTheme={selectTheme}
+          onSetNeon={selectNeon}
+          onClose={() => setConfigOpen(false)}
+        />
+      )}
+
       {adminOpen && (
         <AdminDialog
           schedules={schedules}
@@ -248,6 +311,88 @@ function EmptyState({ view, search }: { view: View; search: string }) {
     <div className="state-card empty">
       <span className="empty-icon"><Search /></span>
       <div><h3>{title}</h3><p>{search ? 'Tente o sobrenome, a matéria ou o nome da turma.' : 'Consulte outro período ou a semana completa.'}</p></div>
+    </div>
+  )
+}
+
+function SideMenu({ theme, onClose, onOpenConfig }: { theme: Theme; onClose: () => void; onOpenConfig: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <aside className="side-menu" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+        <div className="dialog-header">
+          <h2 id="menu-title">Menu</h2>
+          <button className="icon-button" onClick={onClose} aria-label="Fechar menu"><X /></button>
+        </div>
+        <nav className="side-menu-list">
+          <a href="#inicio" onClick={onClose}><Search size={18} /> Buscar professores</a>
+          <button type="button" onClick={onOpenConfig}>
+            <Settings size={18} /> Configurações
+            <span className="menu-current-theme">{THEME_LABELS[theme]}</span>
+          </button>
+          <a href="https://tech-2d.github.io/Agenda/" target="_blank" rel="noopener noreferrer"><CalendarDays size={18} /> Agenda da turma <ArrowRight size={15} className="menu-external-icon" /></a>
+        </nav>
+      </aside>
+    </div>
+  )
+}
+
+function ConfigDialog({ theme, neon, onSetTheme, onSetNeon, onClose }: {
+  theme: Theme
+  neon: NeonColor
+  onSetTheme: (value: Theme) => void
+  onSetNeon: (value: NeonColor) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="config-dialog" role="dialog" aria-modal="true" aria-labelledby="config-title">
+        <div className="dialog-header">
+          <h2 id="config-title">Configurações</h2>
+          <button className="icon-button" onClick={onClose} aria-label="Fechar configurações"><X /></button>
+        </div>
+        <div className="config-content">
+          <h3>Aparência</h3>
+          <p>Escolha como a grade e o menu aparecem para você.</p>
+          <div className="theme-options" aria-label="Tema">
+            {THEMES.map((value) => (
+              <button type="button" key={value} className={`theme-swatch ${theme === value ? 'active' : ''}`} onClick={() => onSetTheme(value)} aria-pressed={theme === value}>
+                <span className={`theme-dot theme-dot-${value}`} /> {THEME_LABELS[value]}
+              </button>
+            ))}
+          </div>
+          {theme === 'neon' && (
+            <div className="neon-picker">
+              <h3>Cor do neon</h3>
+              <div className="neon-options" aria-label="Cor de destaque neon">
+                {NEON_COLORS.map((value) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className={`neon-swatch ${neon === value ? 'active' : ''}`}
+                    style={{ background: NEON_COLOR_SWATCHES[value] }}
+                    onClick={() => onSetNeon(value)}
+                    aria-label={NEON_COLOR_LABELS[value]}
+                    aria-pressed={neon === value}
+                    title={NEON_COLOR_LABELS[value]}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
