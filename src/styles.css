@@ -221,18 +221,9 @@ footer > button { border: 0; background: transparent; cursor: pointer; color: #7
   --shadow: 0 2px 5px rgba(29, 44, 82, .16);
 }
 .app-shell { background: #fbfcff; }
-.topbar { position: relative; max-width: none; height: 84px; padding: 0 max(28px, calc((100vw - 1390px) / 2)) 0 max(76px, calc((100vw - 1390px) / 2)); color: white; background: #0e35be; }
+.topbar { position: relative; max-width: none; height: 84px; padding: 0 max(28px, calc((100vw - 1390px) / 2)); color: white; background: #0e35be; }
 .brand { color: white; font-size: 20px; letter-spacing: -.025em; }
 .brand-mark { width: 39px; height: 39px; color: #0e35be; background: white; border-radius: 8px; transform: none; }
-.admin-trigger { position: absolute; top: 0; left: 0; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 0 0 8px 0; background: transparent; color: white; cursor: pointer; transition: background-color .2s ease; }
-.admin-trigger svg { opacity: 0; transform: rotate(-20deg) scale(.7); transition: opacity .2s ease, transform .3s ease; }
-.admin-trigger:focus-visible { background: rgba(255,255,255,.14); outline: 2px solid #67e9e9; outline-offset: -3px; }
-.admin-trigger:focus-visible svg { opacity: 1; transform: rotate(0) scale(1); animation: admin-key-color 1.3s ease-in-out infinite; }
-@media (hover: hover) {
-  .admin-trigger:hover { background: rgba(255,255,255,.14); }
-  .admin-trigger:hover svg { opacity: 1; transform: rotate(0) scale(1); animation: admin-key-color 1.3s ease-in-out infinite; }
-}
-@keyframes admin-key-color { 0%, 100% { color: #fff; } 50% { color: #52e2e6; } }
 .main-content { width: min(1380px, calc(100% - 48px)); margin: 0 auto; padding: 44px 0 100px; }
 .page-heading { text-align: center; margin-bottom: 47px; }
 .page-heading h1 { max-width: none; margin: 0; color: #1237b7; font-size: 31px; line-height: 1.2; letter-spacing: -.035em; }
@@ -301,10 +292,9 @@ footer > button { border: 0; background: transparent; cursor: pointer; color: #7
 }
 
 @media (max-width: 640px) {
-  .topbar { height: 68px; padding: 0 17px 0 52px; }
+  .topbar { height: 68px; padding: 0 52px; }
   .brand { font-size: 16px; }
   .brand-mark { width: 32px; height: 32px; }
-  .admin-trigger { width: 42px; height: 42px; }
   .main-content { width: calc(100% - 30px); padding: 35px 0 70px; }
   .page-heading { margin-bottom: 28px; }
   .page-heading h1 { font-size: 24px; }
@@ -325,10 +315,6 @@ footer > button { border: 0; background: transparent; cursor: pointer; color: #7
   .location-block { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid #edf0f5; }
   .import-preview, .admin-list-heading { align-items: stretch; flex-direction: column; }
   .admin-list-heading input { width: 100%; }
-}
-
-@media (hover: none) {
-  .admin-trigger:active svg { opacity: 1; color: #52e2e6; }
 }
 
 /* Grade semanal inspirada no quadro de horários da escola. */
@@ -416,10 +402,8 @@ footer > button { border: 0; background: transparent; cursor: pointer; color: #7
 [data-theme="neon"] .topbar { color: var(--ink); background: #fff; border-bottom: 2px solid var(--neon); box-shadow: 0 4px 18px var(--neon-soft); }
 [data-theme="neon"] .brand { color: var(--neon-ink); }
 [data-theme="neon"] .brand-mark { color: var(--neon-ink); background: var(--neon-soft); box-shadow: inset 0 0 0 1px var(--neon-line), 0 0 12px var(--neon-line); }
-[data-theme="neon"] .menu-trigger, [data-theme="neon"] .admin-trigger { color: var(--neon-ink); }
-[data-theme="neon"] .menu-trigger:hover, [data-theme="neon"] .menu-trigger:focus-visible, [data-theme="neon"] .admin-trigger:hover, [data-theme="neon"] .admin-trigger:focus-visible { background: var(--neon-soft); }
-[data-theme="neon"] .admin-trigger:hover svg, [data-theme="neon"] .admin-trigger:focus-visible svg { animation: neon-key-color 1.3s ease-in-out infinite; }
-@keyframes neon-key-color { 0%, 100% { color: var(--neon-ink); } 50% { color: var(--neon); } }
+[data-theme="neon"] .menu-trigger { color: var(--neon-ink); }
+[data-theme="neon"] .menu-trigger:hover, [data-theme="neon"] .menu-trigger:focus-visible { background: var(--neon-soft); }
 [data-theme="neon"] .page-heading h1, [data-theme="neon"] .section-heading h2, [data-theme="neon"] .dialog-header h2, [data-theme="neon"] .form-title h3 { color: var(--neon-ink); }
 [data-theme="neon"] .page-heading p, [data-theme="neon"] .section-heading > span, [data-theme="neon"] .schedule-filters label { color: var(--ink-soft); }
 [data-theme="neon"] .search-section .search-box, [data-theme="neon"] .schedule-filters select, [data-theme="neon"] .view-switcher, [data-theme="neon"] .admin-list-heading input { border-color: var(--line); background: white; }

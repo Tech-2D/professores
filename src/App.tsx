@@ -182,16 +182,6 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button
-          type="button"
-          className="admin-trigger"
-          aria-label="Abrir área administrativa"
-          aria-haspopup="dialog"
-          title="Área administrativa"
-          onClick={openAdmin}
-        >
-          <KeyRound size={20} strokeWidth={2.3} aria-hidden="true" />
-        </button>
         <a className="brand" href="#inicio" aria-label="Cadê o professor? — início">
           <span className="brand-mark"><MapPin size={21} strokeWidth={2.3} /></span>
           <span>Cadê o professor?</span>
@@ -267,6 +257,7 @@ function App() {
           theme={theme}
           onClose={() => setMenuOpen(false)}
           onOpenConfig={() => { setMenuOpen(false); setConfigOpen(true) }}
+          onOpenAdmin={() => { setMenuOpen(false); openAdmin() }}
         />
       )}
       {configOpen && (
@@ -315,7 +306,7 @@ function EmptyState({ view, search }: { view: View; search: string }) {
   )
 }
 
-function SideMenu({ theme, onClose, onOpenConfig }: { theme: Theme; onClose: () => void; onOpenConfig: () => void }) {
+function SideMenu({ theme, onClose, onOpenConfig, onOpenAdmin }: { theme: Theme; onClose: () => void; onOpenConfig: () => void; onOpenAdmin: () => void }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKeyDown)
@@ -335,6 +326,7 @@ function SideMenu({ theme, onClose, onOpenConfig }: { theme: Theme; onClose: () 
             <Settings size={18} /> Configurações
             <span className="menu-current-theme">{THEME_LABELS[theme]}</span>
           </button>
+          <button type="button" onClick={onOpenAdmin}><KeyRound size={18} /> Área administrativa</button>
           <a href="https://tech-2d.github.io/Agenda/" target="_blank" rel="noopener noreferrer"><CalendarDays size={18} /> Agenda da turma <ArrowRight size={15} className="menu-external-icon" /></a>
         </nav>
       </aside>
