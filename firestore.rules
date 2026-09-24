@@ -25,7 +25,6 @@ service cloud.firestore {
     function canClaimRepresentativeAccess(uid) {
       return isSignedIn()
         && request.auth.uid == uid
-        && request.auth.token.email_verified == true
         && request.auth.token.email is string
         && exists(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower()))
         && get(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower())).data.email == request.auth.token.email.lower()
@@ -118,7 +117,6 @@ service cloud.firestore {
 
     match /representativeInvites/{email} {
       allow get: if (isSignedIn()
-        && request.auth.token.email_verified == true
         && request.auth.token.email is string
         && request.auth.token.email.lower() == email) || isSuperAdmin();
       allow list: if isSuperAdmin();
