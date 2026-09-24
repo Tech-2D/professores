@@ -153,9 +153,22 @@ service cloud.firestore {
       allow list: if canManage(resource.data.turmaId);
       allow create: if isValidSuggestion(request.resource.data);
       allow update: if canManage(resource.data.turmaId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
-        && request.resource.data.status in ['aprovada', 'rejeitada'];
-      allow delete: if canManage(resource.data.turmaId);
+        && (
+          (resource.data.status == 'pendente'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && request.resource.data.status in ['aprovada', 'rejeitada'])
+          ||
+          (resource.data.status in ['aprovada', 'rejeitada']
+            && !resource.data.keys().hasAny(['closedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolution', 'reviewComment', 'closedAt'])
+            && request.resource.data.keys().hasAll(['resolution', 'reviewComment', 'closedAt'])
+            && request.resource.data.resolution in ['feito', 'nao_feito']
+            && request.resource.data.reviewComment is string
+            && request.resource.data.reviewComment.size() > 0
+            && request.resource.data.reviewComment.size() <= 500
+            && request.resource.data.closedAt == request.time)
+        );
+      allow delete: if false;
     }
 
     match /feedback/{feedbackId} {
