@@ -79,8 +79,13 @@ service cloud.firestore {
     }
 
     function isValidFeedback(data) {
-      return data.message is string && data.message.size() > 0 && data.message.size() <= 2000
+      return data.keys().hasOnly(['message', 'turmaId', 'createdAt', 'createdBy', 'createdByEmail'])
+        && data.keys().hasAll(['message', 'turmaId', 'createdAt', 'createdBy', 'createdByEmail'])
+        && data.message is string && data.message.size() > 0 && data.message.size() <= 2000
         && (data.turmaId == null || (data.turmaId is string && data.turmaId.size() > 0))
+        && data.createdBy == request.auth.uid
+        && request.auth.token.email is string
+        && data.createdByEmail == request.auth.token.email
         && data.createdAt == request.time;
     }
 
@@ -170,7 +175,7 @@ service cloud.firestore {
     }
 
     match /feedback/{feedbackId} {
-      allow create: if isValidFeedback(request.resource.data);
+      allow create: if isSignedIn() && isValidFeedback(request.resource.data);
       allow get, list, delete: if isSuperAdmin();
       allow update: if false;
     }
