@@ -10,6 +10,7 @@ vite.config.d.ts
 
 # Chaves privadas do Firebase Admin (nunca versionar)
 firebase-credentials/
+firestore-snapshots/
 service-account*.json
 *-firebase-adminsdk-*.json
 __pycache__/

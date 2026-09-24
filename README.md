@@ -73,34 +73,34 @@ python scripts/generate-schedules.py "caminho/da/planilha.xlsx" data/horarios-tu
 
 ## Centralizar os bancos Firestore
 
-O script [scripts/migrate-firestore.py](scripts/migrate-firestore.py) copia todas as coleções, documentos e subcoleções dos projetos `procurar-professores-5c04a` e `agenda-2e1df` para `d-tech-56a76`, preservando os IDs e os tipos dos campos.
+O script [scripts/migrate-firestore.py](scripts/migrate-firestore.py) usa snapshots JSON retomáveis para copiar todas as coleções, documentos e subcoleções dos projetos `procurar-professores-5c04a` e `agenda-2e1df` para `d-tech-56a76`, preservando os IDs e os tipos dos campos.
 
 As configurações web (`apiKey`, `authDomain`, `projectId` etc.) identificam os aplicativos, mas não concedem acesso administrativo. Gere uma chave privada em **Configurações do projeto > Contas de serviço > Gerar nova chave privada** em cada um dos três projetos. Guarde os arquivos fora do Git; a pasta `firebase-credentials/` está ignorada pelo repositório.
 
-Instale a dependência e faça primeiro uma simulação:
+Instale a dependência e exporte as duas origens. Cada documento é salvo imediatamente em `firestore-snapshots/`; se uma cota for esgotada, execute o mesmo comando depois e ele continuará sem reler os documentos já salvos.
 
 ```powershell
 python -m pip install -r scripts/requirements-firestore-migration.txt
 python scripts/migrate-firestore.py `
+  --phase export `
   --source-professores-key firebase-credentials/professores.json `
-  --source-agenda-key firebase-credentials/agenda.json `
-  --destination-key firebase-credentials/d-tech.json
+  --source-agenda-key firebase-credentials/agenda.json
 ```
 
-Se o resumo estiver correto, repita com `--execute`. Por padrão, o script interrompe antes de gravar se encontrar o mesmo caminho nas duas origens ou no destino. Para manter o documento existente, use `--on-conflict skip`; para substituí-lo, use `--on-conflict overwrite`. Em um conflito entre as duas origens, `skip` mantém a versão de `procurar-professores-5c04a` e `overwrite` usa a versão de `agenda-2e1df`.
+Depois faça uma simulação da importação usando somente os arquivos locais:
 
 ```powershell
 python scripts/migrate-firestore.py `
-  --source-professores-key firebase-credentials/professores.json `
-  --source-agenda-key firebase-credentials/agenda.json `
+  --phase import `
   --destination-key firebase-credentials/d-tech.json `
-  --on-conflict skip `
-  --execute
+  --on-conflict skip
 ```
 
-O script consulta e grava documentos em lotes, espera 250 ms entre os lotes e tenta novamente com espera progressiva quando o Firebase responde com `429`. Se o projeto tiver uma cota mais restrita, aumente a pausa, por exemplo com `--request-delay-ms 1000`. Uma execução interrompida pode ser retomada com o mesmo comando e `--on-conflict skip`; os documentos que já chegaram ao destino serão ignorados.
+Se o resumo estiver correto, acrescente `--execute`. A importação usa o BulkWriter com limite inicial de 50 gravações por segundo e registra cada sucesso em `firestore-snapshots/import-d-tech-56a76.jsonl`. Com `--on-conflict skip`, o script tenta criar cada documento e ignora `AlreadyExists`, sem gastar leituras para consultar previamente todo o destino. Uma execução interrompida também continua do checkpoint local.
 
-Se o erro `429` continuar mesmo após as novas tentativas, o limite diário do projeto provavelmente foi esgotado. Nesse caso, aguarde a renovação da cota ou verifique as cotas e o faturamento no Google Cloud antes de retomar.
+O comando antigo continua válido e executa as duas fases em sequência. Também é possível reduzir a velocidade com `--writes-per-second 10 --request-delay-ms 1000`.
+
+O snapshot impede trabalho repetido, mas não contorna uma cota diária já esgotada. Se o erro `429` aparecer antes de qualquer avanço, aguarde a renovação da cota ou verifique as cotas e o faturamento no Google Cloud; depois repita exatamente a fase que parou.
 
 > O script migra somente o Cloud Firestore `(default)`. Usuários do Firebase Authentication, senhas, arquivos do Storage, regras e índices não fazem parte da migração. Documentos da coleção `admins` usam UIDs do Authentication; para que continuem funcionando, as contas correspondentes precisam existir no projeto de destino com os mesmos UIDs.
 
