@@ -11,6 +11,8 @@ Aplicação web para consultar em qual sala cada professor está, com busca por 
 
 ## Configurar o Firebase
 
+Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase central, `d-tech-56a76`, mantendo coleções separadas no mesmo Firestore.
+
 1. No Console do Firebase, abra **Authentication > Sign-in method** e habilite **E-mail/senha**.
 2. Em **Authentication > Users**, crie cada usuário administrador com seu próprio e-mail e senha. A senha é definida apenas no Firebase e nunca vai para o código ou para o Firestore.
 3. Copie o UID de cada usuário.
@@ -68,6 +70,39 @@ python scripts/generate-schedules.py "caminho/da/planilha.xlsx" data/horarios-tu
 1. Em **Settings > Pages**, selecione **GitHub Actions** como fonte de publicação.
 2. Envie as alterações para a branch `main`. O workflow `.github/workflows/deploy.yml` fará a publicação.
 3. Publique também a versão atualizada das regras do Firestore, que verifica o campo `role: "admin"`.
+
+## Centralizar os bancos Firestore
+
+O script [scripts/migrate-firestore.py](scripts/migrate-firestore.py) copia todas as coleções, documentos e subcoleções dos projetos `procurar-professores-5c04a` e `agenda-2e1df` para `d-tech-56a76`, preservando os IDs e os tipos dos campos.
+
+As configurações web (`apiKey`, `authDomain`, `projectId` etc.) identificam os aplicativos, mas não concedem acesso administrativo. Gere uma chave privada em **Configurações do projeto > Contas de serviço > Gerar nova chave privada** em cada um dos três projetos. Guarde os arquivos fora do Git; a pasta `firebase-credentials/` está ignorada pelo repositório.
+
+Instale a dependência e faça primeiro uma simulação:
+
+```powershell
+python -m pip install -r scripts/requirements-firestore-migration.txt
+python scripts/migrate-firestore.py `
+  --source-professores-key firebase-credentials/professores.json `
+  --source-agenda-key firebase-credentials/agenda.json `
+  --destination-key firebase-credentials/d-tech.json
+```
+
+Se o resumo estiver correto, repita com `--execute`. Por padrão, o script interrompe antes de gravar se encontrar o mesmo caminho nas duas origens ou no destino. Para manter o documento existente, use `--on-conflict skip`; para substituí-lo, use `--on-conflict overwrite`. Em um conflito entre as duas origens, `skip` mantém a versão de `procurar-professores-5c04a` e `overwrite` usa a versão de `agenda-2e1df`.
+
+```powershell
+python scripts/migrate-firestore.py `
+  --source-professores-key firebase-credentials/professores.json `
+  --source-agenda-key firebase-credentials/agenda.json `
+  --destination-key firebase-credentials/d-tech.json `
+  --on-conflict skip `
+  --execute
+```
+
+O script consulta e grava documentos em lotes, espera 250 ms entre os lotes e tenta novamente com espera progressiva quando o Firebase responde com `429`. Se o projeto tiver uma cota mais restrita, aumente a pausa, por exemplo com `--request-delay-ms 1000`. Uma execução interrompida pode ser retomada com o mesmo comando e `--on-conflict skip`; os documentos que já chegaram ao destino serão ignorados.
+
+Se o erro `429` continuar mesmo após as novas tentativas, o limite diário do projeto provavelmente foi esgotado. Nesse caso, aguarde a renovação da cota ou verifique as cotas e o faturamento no Google Cloud antes de retomar.
+
+> O script migra somente o Cloud Firestore `(default)`. Usuários do Firebase Authentication, senhas, arquivos do Storage, regras e índices não fazem parte da migração. Documentos da coleção `admins` usam UIDs do Authentication; para que continuem funcionando, as contas correspondentes precisam existir no projeto de destino com os mesmos UIDs.
 
 ## Comandos
 

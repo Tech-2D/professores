@@ -1,0 +1,117 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+
+    function isProfessorAdmin() {
+      return isSignedIn() && adminData().role == 'admin';
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && adminData().role == 'superadmin';
+    }
+
+    function isRepresentanteOf(turmaId) {
+      return isSignedIn()
+        && adminData().role == 'representante'
+        && adminData().turmaId == turmaId;
+    }
+
+    function canManage(turmaId) {
+      return isSuperAdmin() || isRepresentanteOf(turmaId);
+    }
+
+    function isAnyAgendaAdmin() {
+      return isSignedIn() && adminData().role in ['representante', 'superadmin'];
+    }
+
+    function canManageActivity(data) {
+      return data.turmaId == null
+        ? (isSuperAdmin() || (isSignedIn() && data.createdBy == request.auth.uid))
+        : canManage(data.turmaId);
+    }
+
+    function canCreateActivity(data) {
+      return data.createdBy == request.auth.uid
+        && (data.turmaId == null ? isAnyAgendaAdmin() : canManage(data.turmaId));
+    }
+
+    function hasActivityShape(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.description is string && data.description.size() <= 2000
+        && data.type in ['tarefa', 'licao', 'trabalho', 'prova', 'evento']
+        && (data.subject == null || (data.subject is string && data.subject.size() > 0 && data.subject.size() <= 120))
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (data.time == null || (data.time is string && data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')))
+        && (data.turmaId == null || (data.turmaId is string && data.turmaId.size() > 0));
+    }
+
+    function isValidSuggestion(data) {
+      return hasActivityShape(data)
+        && data.turmaId is string && data.turmaId.size() > 0
+        && data.status == 'pendente'
+        && data.createdAt == request.time;
+    }
+
+    function isValidFeedback(data) {
+      return data.message is string && data.message.size() > 0 && data.message.size() <= 2000
+        && (data.turmaId == null || (data.turmaId is string && data.turmaId.size() > 0))
+        && data.createdAt == request.time;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.message is string && data.message.size() > 0 && data.message.size() <= 500
+        && data.updatedAt == request.time;
+    }
+
+    match /admins/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow create, update, delete: if isProfessorAdmin();
+    }
+
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create: if hasActivityShape(request.resource.data)
+        && canCreateActivity(request.resource.data);
+      allow update: if canManageActivity(resource.data)
+        && (request.resource.data.turmaId == null ? isAnyAgendaAdmin() : canManage(request.resource.data.turmaId))
+        && hasActivityShape(request.resource.data);
+      allow delete: if canManageActivity(resource.data);
+    }
+
+    match /suggestions/{suggestionId} {
+      allow get: if true;
+      allow list: if canManage(resource.data.turmaId);
+      allow create: if isValidSuggestion(request.resource.data);
+      allow update: if canManage(resource.data.turmaId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status in ['aprovada', 'rejeitada'];
+      allow delete: if canManage(resource.data.turmaId);
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if isValidFeedback(request.resource.data);
+      allow get, list, delete: if isSuperAdmin();
+      allow update: if false;
+    }
+
+    match /announcement/{announcementId} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if isSuperAdmin() && isValidAnnouncement(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+  }
+}
