@@ -187,7 +187,7 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
-    // Caderno Infinito: leitura coletiva autenticada, edição apenas pelo autor.
+    // Caderno Infinito: leitura pública; publicação autenticada e edição apenas pelo autor.
     function isValidNotebookNote(data) {
       return data.keys().hasOnly(['title', 'content', 'subject', 'className', 'authorUid', 'authorEmail', 'createdAt', 'updatedAt'])
         && data.keys().hasAll(['title', 'content', 'subject', 'className', 'authorUid', 'authorEmail', 'createdAt', 'updatedAt'])
@@ -201,7 +201,7 @@ service cloud.firestore {
     }
 
     match /notebookNotes/{noteId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create: if isSignedIn()
         && request.auth.token.email is string
         && isValidNotebookNote(request.resource.data)
