@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import sys
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -29,7 +29,6 @@ from google.api_core import exceptions as google_exceptions
 from google.api_core.datetime_helpers import DatetimeWithNanoseconds
 from google.api_core.retry import Retry, if_exception_type
 from google.cloud.firestore_v1 import DocumentReference, GeoPoint
-from google.cloud.firestore_v1.bulk_writer import BulkWriterOptions, SendMode
 
 
 SOURCE_PROJECTS = (
@@ -52,10 +51,6 @@ RETRYABLE_FIREBASE_ERRORS = (
     google_exceptions.ServiceUnavailable,
     google_exceptions.InternalServerError,
 )
-RETRYABLE_GRPC_CODES = {4, 8, 13, 14}
-ALREADY_EXISTS_GRPC_CODE = 6
-
-
 @dataclass(frozen=True)
 class DocumentCopy:
     source_project: str
@@ -90,6 +85,14 @@ def parse_args() -> argparse.Namespace:
         help="JSON da conta de serviço de procurar-professores-5c04a.",
     )
     parser.add_argument(
+        "--professores-schedules-json",
+        type=Path,
+        help=(
+            "JSON de horários gerado da planilha. Quando informado, substitui a leitura "
+            "do Firestore procurar-professores-5c04a."
+        ),
+    )
+    parser.add_argument(
         "--source-agenda-key",
         type=Path,
         help="JSON da conta de serviço de agenda-2e1df.",
@@ -104,6 +107,12 @@ def parse_args() -> argparse.Namespace:
         choices=("all", "export", "import"),
         default="all",
         help="Executa todo o fluxo, somente a exportação ou somente a importação.",
+    )
+    parser.add_argument(
+        "--export-source",
+        choices=("all", "professores", "agenda"),
+        default="all",
+        help="Na fase export, processa ambas as origens ou somente uma delas.",
     )
     parser.add_argument(
         "--snapshot-dir",
@@ -314,6 +323,89 @@ def append_snapshot(file: TextIO, document: DocumentCopy) -> None:
     file.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
+def schedule_document_id(schedule: Mapping[str, Any]) -> str:
+    identity = "|".join(
+        str(schedule[field])
+        for field in (
+            "className",
+            "dayOfWeek",
+            "startTime",
+            "endTime",
+            "professor",
+            "subject",
+        )
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+    return f"import_{digest}"
+
+
+def export_professores_from_json(schedule_json: Path, snapshot_dir: Path) -> int:
+    if not schedule_json.is_file():
+        raise ValueError(f"JSON de horários não encontrado: {schedule_json}")
+    try:
+        schedules = json.loads(schedule_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"JSON de horários inválido em {schedule_json}: {error}") from error
+    if not isinstance(schedules, list) or not schedules:
+        raise ValueError("O JSON de horários precisa conter uma lista não vazia.")
+
+    required_fields = {
+        "professor",
+        "subject",
+        "className",
+        "floor",
+        "startTime",
+        "endTime",
+        "roomDescription",
+        "dayOfWeek",
+        "active",
+    }
+    documents: list[DocumentCopy] = []
+    paths: set[str] = set()
+    for index, schedule in enumerate(schedules, start=1):
+        if not isinstance(schedule, dict):
+            raise ValueError(f"Horário {index} não é um objeto JSON.")
+        missing = sorted(required_fields - schedule.keys())
+        if missing:
+            raise ValueError(f"Horário {index} sem campos obrigatórios: {missing}")
+        path = f"schedules/{schedule_document_id(schedule)}"
+        if path in paths:
+            raise ValueError(f"Horário duplicado no JSON: {index}")
+        paths.add(path)
+        documents.append(
+            DocumentCopy(
+                source_project="procurar-professores-5c04a",
+                path=path,
+                data={key: schedule[key] for key in required_fields},
+            ),
+        )
+
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    output_path = snapshot_path(snapshot_dir, "procurar-professores-5c04a")
+    temporary_path = output_path.with_suffix(".jsonl.tmp")
+    with temporary_path.open("w", encoding="utf-8", newline="\n") as snapshot_file:
+        for document in documents:
+            append_snapshot(snapshot_file, document)
+    temporary_path.replace(output_path)
+
+    manifest = {
+        "projectId": "procurar-professores-5c04a",
+        "complete": True,
+        "documentCount": len(documents),
+        "format": "firestore-jsonl-v1",
+        "source": str(schedule_json),
+    }
+    manifest_path(snapshot_dir, "procurar-professores-5c04a").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(
+        "[procurar-professores-5c04a] snapshot reconstruído da planilha: "
+        f"{len(documents)} horário(s).",
+    )
+    return len(documents)
+
+
 def walk_collection_to_snapshot(
     source_client,
     collection,
@@ -482,23 +574,21 @@ class ImportProgress:
             for record in read_json_lines(path)
             if "path" in record
         }
-        self._lock = threading.Lock()
         self._file = path.open("a", encoding="utf-8", newline="\n")
 
     def mark(self, document_path: str, result: str) -> None:
-        with self._lock:
-            if document_path in self.completed:
-                return
-            self._file.write(
-                json.dumps(
-                    {"path": document_path, "result": result},
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-                + "\n",
+        if document_path in self.completed:
+            return
+        self._file.write(
+            json.dumps(
+                {"path": document_path, "result": result},
+                ensure_ascii=False,
+                separators=(",", ":"),
             )
-            self._file.flush()
-            self.completed.add(document_path)
+            + "\n",
+        )
+        self._file.flush()
+        self.completed.add(document_path)
 
     def close(self) -> None:
         self._file.close()
@@ -511,6 +601,7 @@ def import_documents(
     conflict_policy: str,
     write_batch_size: int,
     writes_per_second: int,
+    retry_policy: Retry,
     delay_seconds: float,
 ) -> tuple[int, int]:
     progress = ImportProgress(snapshot_dir / f"import-{DESTINATION_PROJECT}.jsonl")
@@ -524,73 +615,76 @@ def import_documents(
     skipped = 0
 
     try:
-        for document_batch in chunks(pending, write_batch_size):
-            options = BulkWriterOptions(
-                initial_ops_per_second=writes_per_second,
-                max_ops_per_second=writes_per_second,
-                mode=SendMode.parallel,
-            )
-            writer = destination_client.bulk_writer(options=options)
-            batch_errors: list[str] = []
-            batch_counts = {"written": 0, "skipped": 0}
-            callback_lock = threading.Lock()
-
-            def on_success(reference, _result, _writer) -> None:
-                progress.mark(reference.path, "written")
-                with callback_lock:
-                    batch_counts["written"] += 1
-
-            def on_error(failure, _writer) -> bool:
-                path = failure.operation.reference.path
-                if failure.code == ALREADY_EXISTS_GRPC_CODE and conflict_policy == "skip":
-                    progress.mark(path, "skipped-existing")
-                    with callback_lock:
-                        batch_counts["skipped"] += 1
-                    return False
-                if failure.code in RETRYABLE_GRPC_CODES and failure.attempts < 15:
-                    return True
-                with callback_lock:
-                    batch_errors.append(f"{path}: [{failure.code}] {failure.message}")
-                return False
-
-            writer.on_write_result(on_success)
-            writer.on_write_error(on_error)
+        effective_batch_size = min(write_batch_size, writes_per_second)
+        for document_batch in chunks(pending, effective_batch_size):
+            batch = destination_client.batch()
             for document in document_batch:
                 reference = destination_client.document(document.path)
                 decoded_data = decode_value(document.data, destination_client)
                 if conflict_policy == "overwrite":
-                    writer.set(reference, decoded_data)
+                    batch.set(reference, decoded_data)
                 else:
-                    writer.create(reference, decoded_data)
-            writer.flush()
+                    batch.create(reference, decoded_data)
 
-            written += batch_counts["written"]
-            skipped += batch_counts["skipped"]
+            try:
+                batch.commit(retry=retry_policy, timeout=120)
+                for document in document_batch:
+                    progress.mark(document.path, "written")
+                written += len(document_batch)
+            except google_exceptions.AlreadyExists:
+                if conflict_policy != "skip":
+                    raise
+                # Um create existente invalida o lote inteiro. Refaz somente esse
+                # lote individualmente para distinguir existentes de pendentes.
+                for document in document_batch:
+                    reference = destination_client.document(document.path)
+                    decoded_data = decode_value(document.data, destination_client)
+                    try:
+                        reference.create(decoded_data, retry=retry_policy, timeout=120)
+                        progress.mark(document.path, "written")
+                        written += 1
+                    except google_exceptions.AlreadyExists:
+                        progress.mark(document.path, "skipped-existing")
+                        skipped += 1
+                    pause(1 / writes_per_second)
+
             completed_count = already_completed + written + skipped
             print(f"Importados/ignorados {completed_count} de {len(documents)} documento(s).")
-            if batch_errors:
-                sample = "\n  - ".join(batch_errors[:20])
-                raise RuntimeError(f"Falhas ao gravar no destino:\n  - {sample}")
-            pause(delay_seconds)
+            pause(max(delay_seconds, len(document_batch) / writes_per_second))
     finally:
         progress.close()
     return written, skipped
 
 
 def run_export(args: argparse.Namespace, retry_policy: Retry, delay_seconds: float) -> int:
-    source_keys = {
-        "procurar-professores-5c04a": require_key(
-            args.source_professores_key,
-            "--source-professores-key",
-        ),
-        "agenda-2e1df": require_key(args.source_agenda_key, "--source-agenda-key"),
-    }
     total = 0
-    for project in SOURCE_PROJECTS:
-        client = create_client(project, source_keys[project])
+    if args.export_source in ("all", "professores"):
+        if args.professores_schedules_json is not None:
+            total += export_professores_from_json(
+                args.professores_schedules_json,
+                args.snapshot_dir,
+            )
+        else:
+            source_key = require_key(
+                args.source_professores_key,
+                "--source-professores-key ou --professores-schedules-json",
+            )
+            client = create_client("procurar-professores-5c04a", source_key)
+            total += export_project(
+                client,
+                "procurar-professores-5c04a",
+                args.snapshot_dir,
+                args.read_batch_size,
+                retry_policy,
+                delay_seconds,
+            )
+
+    if args.export_source in ("all", "agenda"):
+        source_key = require_key(args.source_agenda_key, "--source-agenda-key")
+        client = create_client("agenda-2e1df", source_key)
         total += export_project(
             client,
-            project,
+            "agenda-2e1df",
             args.snapshot_dir,
             args.read_batch_size,
             retry_policy,
@@ -599,7 +693,7 @@ def run_export(args: argparse.Namespace, retry_policy: Retry, delay_seconds: flo
     return total
 
 
-def run_import(args: argparse.Namespace, delay_seconds: float) -> None:
+def run_import(args: argparse.Namespace, retry_policy: Retry, delay_seconds: float) -> None:
     documents = load_documents_from_snapshots(args.snapshot_dir)
     unique_documents, source_ignored = resolve_source_conflicts(documents, args.on_conflict)
     print("\nResumo dos snapshots")
@@ -621,6 +715,7 @@ def run_import(args: argparse.Namespace, delay_seconds: float) -> None:
         args.on_conflict,
         args.write_batch_size,
         args.writes_per_second,
+        retry_policy,
         delay_seconds,
     )
     print(f"\nMigração concluída no projeto {DESTINATION_PROJECT}.")
@@ -637,7 +732,7 @@ def main() -> int:
         if args.phase in ("all", "export"):
             run_export(args, retry_policy, delay_seconds)
         if args.phase in ("all", "import"):
-            run_import(args, delay_seconds)
+            run_import(args, retry_policy, delay_seconds)
         return 0
     except (RuntimeError, TypeError, ValueError) as error:
         print(f"ERRO: {error}", file=sys.stderr)

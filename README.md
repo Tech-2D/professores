@@ -77,15 +77,21 @@ O script [scripts/migrate-firestore.py](scripts/migrate-firestore.py) usa snapsh
 
 As configurações web (`apiKey`, `authDomain`, `projectId` etc.) identificam os aplicativos, mas não concedem acesso administrativo. Gere uma chave privada em **Configurações do projeto > Contas de serviço > Gerar nova chave privada** em cada um dos três projetos. Guarde os arquivos fora do Git; a pasta `firebase-credentials/` está ignorada pelo repositório.
 
-Instale a dependência e exporte as duas origens. Cada documento é salvo imediatamente em `firestore-snapshots/`; se uma cota for esgotada, execute o mesmo comando depois e ele continuará sem reler os documentos já salvos.
+Instale a dependência. Como o Firestore antigo de professores pode estar com a cota bloqueada, reconstrua `schedules` diretamente da planilha original:
 
 ```powershell
 python -m pip install -r scripts/requirements-firestore-migration.txt
+python scripts/generate-schedules.py `
+  "caminho\Class schedule - August 24th - All Classes.xlsx" `
+  firestore-snapshots/professores-schedules.json
+
 python scripts/migrate-firestore.py `
   --phase export `
-  --source-professores-key firebase-credentials/professores.json `
+  --professores-schedules-json firestore-snapshots/professores-schedules.json `
   --source-agenda-key firebase-credentials/agenda.json
 ```
+
+Esse comando não consulta o Firestore antigo dos professores. Ele gera IDs determinísticos iguais aos usados pela importação da área administrativa. O banco da Agenda continua sendo exportado para JSON normalmente. Cada documento da Agenda é salvo imediatamente em `firestore-snapshots/`; se uma cota for esgotada, execute o mesmo comando depois e ele continuará sem reler documentos já salvos. Para exportar somente a Agenda, use `--export-source agenda`.
 
 Depois faça uma simulação da importação usando somente os arquivos locais:
 
@@ -100,7 +106,7 @@ Se o resumo estiver correto, acrescente `--execute`. A importação usa o BulkWr
 
 O comando antigo continua válido e executa as duas fases em sequência. Também é possível reduzir a velocidade com `--writes-per-second 10 --request-delay-ms 1000`.
 
-O snapshot impede trabalho repetido, mas não contorna uma cota diária já esgotada. Se o erro `429` aparecer antes de qualquer avanço, aguarde a renovação da cota ou verifique as cotas e o faturamento no Google Cloud; depois repita exatamente a fase que parou.
+O snapshot impede trabalho repetido, mas não contorna uma cota diária já esgotada. A reconstrução pela planilha elimina essa dependência para `schedules`. Se a Agenda também responder com `429`, aguarde a renovação da cota e repita a exportação; o checkpoint será mantido.
 
 > O script migra somente o Cloud Firestore `(default)`. Usuários do Firebase Authentication, senhas, arquivos do Storage, regras e índices não fazem parte da migração. Documentos da coleção `admins` usam UIDs do Authentication; para que continuem funcionando, as contas correspondentes precisam existir no projeto de destino com os mesmos UIDs.
 
