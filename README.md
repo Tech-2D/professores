@@ -19,6 +19,8 @@ Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase centr
 4. No Firestore, crie a coleção `admins`. Para cada usuário, crie um documento cujo **ID seja o UID copiado**, com o campo `{ "role": "admin" }`. Para administrar também a Agenda, use `{ "role": "superadmin" }`.
 5. Publique as regras deste repositório com `firebase deploy --only firestore:rules` ou cole o conteúdo de `firestore.rules` no Console do Firebase.
 
+Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase e o mesmo conjunto de regras. A Agenda agora recebe solicitações de representantes (`representativeRequests`) e aprova convites por e-mail (`representativeInvites`); por isso, mantenha `firestore.rules` sincronizado entre os dois repositórios antes de publicar qualquer alteração nas regras.
+
 > Variáveis `VITE_*` são incorporadas ao JavaScript público. Por isso, nunca coloque senhas em `.env`, no Firestore ou nos secrets do GitHub. O site pede e-mail e senha, valida pelo Firebase Authentication e só libera o painel se o UID autenticado tiver `role: "admin"` ou `role: "superadmin"` em `admins`.
 
 ## Rodar localmente

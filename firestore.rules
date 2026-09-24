@@ -18,6 +18,25 @@ service cloud.firestore {
       return isSignedIn() && adminData().role == 'superadmin';
     }
 
+    function isKnownAgendaTurma(turmaId) {
+      return turmaId in ['2° TECH D', '2° TECH E', '2° TECH F', '2° TECH G', '2° TECH H', '2° TECH I'];
+    }
+
+    function canClaimRepresentativeAccess(uid) {
+      return isSignedIn()
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && exists(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower()))
+        && get(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower())).data.email == request.auth.token.email.lower()
+        && isKnownAgendaTurma(get(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower())).data.turmaId)
+        && request.resource.data.keys().hasOnly(['role', 'turmaId', 'createdAt'])
+        && request.resource.data.keys().hasAll(['role', 'turmaId', 'createdAt'])
+        && request.resource.data.role == 'representante'
+        && request.resource.data.turmaId == get(/databases/$(database)/documents/representativeInvites/$(request.auth.token.email.lower())).data.turmaId
+        && request.resource.data.createdAt == request.time;
+    }
+
     function isRepresentanteOf(turmaId) {
       return isSignedIn()
         && adminData().role == 'representante'
@@ -73,7 +92,45 @@ service cloud.firestore {
 
     match /admins/{uid} {
       allow get: if isSignedIn() && request.auth.uid == uid;
-      allow list, create, update, delete: if false;
+      allow create: if canClaimRepresentativeAccess(uid);
+      allow list, update, delete: if false;
+    }
+
+    match /representativeRequests/{requestId} {
+      // O ID aleatório é o código que o solicitante guarda para consultar o status.
+      allow get: if true;
+      allow list: if isSuperAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['email', 'turmaId', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['email', 'turmaId', 'status', 'createdAt'])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$')
+        && isKnownAgendaTurma(request.resource.data.turmaId)
+        && request.resource.data.status == 'pendente'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSuperAdmin()
+        && resource.data.status == 'pendente'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt'])
+        && request.resource.data.status in ['aprovada', 'rejeitada']
+        && request.resource.data.reviewedAt == request.time;
+      allow delete: if isSuperAdmin();
+    }
+
+    match /representativeInvites/{email} {
+      allow get: if (isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == email) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create, update: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(['email', 'turmaId', 'requestId', 'approvedAt'])
+        && request.resource.data.keys().hasAll(['email', 'turmaId', 'requestId', 'approvedAt'])
+        && request.resource.data.email == email
+        && isKnownAgendaTurma(request.resource.data.turmaId)
+        && request.resource.data.requestId is string
+        && request.resource.data.requestId.size() == 20
+        && request.resource.data.approvedAt == request.time;
+      allow delete: if isSuperAdmin();
     }
 
     match /schedules/{scheduleId} {
