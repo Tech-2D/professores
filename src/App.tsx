@@ -35,6 +35,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { CLASS_NAMES } from './classNames'
+import { readPreferredClass, savePreferredClass } from './classPreference'
 import { importDocumentId, parseSchedulesJson } from './importSchedules'
 import { isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
 import { WEEKDAYS, type Schedule, type ScheduleInput } from './types'
@@ -71,7 +72,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState<string>(CLASS_NAMES[0])
+  const [classFilter, setClassFilter] = useState<string>(() => readPreferredClass() ?? CLASS_NAMES[0])
   const [subjectFilter, setSubjectFilter] = useState('')
   const [dayFilter, setDayFilter] = useState(0)
   const [view, setView] = useState<View>('all')
@@ -104,6 +105,16 @@ function App() {
   function selectNeon(value: NeonColor) {
     setNeonState(value)
     storeNeon(value)
+  }
+
+  function selectClass(value: string) {
+    setClassFilter(value)
+    if (value) savePreferredClass(value)
+  }
+
+  function clearSearch() {
+    setSearch('')
+    setClassFilter(readPreferredClass() ?? CLASS_NAMES[0])
   }
 
   useEffect(() => {
@@ -214,12 +225,12 @@ function App() {
               onChange={(event) => {
                 const value = event.target.value
                 setSearch(value)
-                setClassFilter(value.trim() ? '' : CLASS_NAMES[0])
+                setClassFilter(value.trim() ? '' : readPreferredClass() ?? CLASS_NAMES[0])
               }}
               placeholder="Buscar professor, matéria, turma ou local"
               autoComplete="off"
             />
-            {search && <button className="clear-search" onClick={() => { setSearch(''); setClassFilter(CLASS_NAMES[0]) }} aria-label="Limpar busca"><X size={18} /></button>}
+            {search && <button className="clear-search" onClick={clearSearch} aria-label="Limpar busca"><X size={18} /></button>}
           </div>
           <div className="view-switcher" aria-label="Filtrar horários">
             <button className={view === 'now' ? 'active' : ''} onClick={() => setView('now')}>Agora</button>
@@ -229,7 +240,7 @@ function App() {
         </section>
 
         <div className="schedule-filters" aria-label="Filtros da grade">
-          <label>Turma<select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}><option value="">Todas as turmas</option>{CLASS_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+          <label>Turma<select value={classFilter} onChange={(event) => selectClass(event.target.value)}><option value="">Todas as turmas</option>{CLASS_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
           <label>Matéria<select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}><option value="">Todas as matérias</option>{subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label>
           <label>Dia<select value={dayFilter} onChange={(event) => { setDayFilter(Number(event.target.value)); setView('all') }}><option value={0}>Semana inteira</option>{WEEKDAYS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select></label>
         </div>
