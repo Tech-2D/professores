@@ -188,6 +188,11 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && request.auth.uid == voterUid
           && get(/databases/$(database)/documents/polls/$(pollId)).data.status == 'open'
+          && exists(/databases/$(database)/documents/pollVoterAccess/$(voterUid))
+          && get(/databases/$(database)/documents/pollVoterAccess/$(voterUid)).data.status == 'approved'
+          && get(/databases/$(database)/documents/pollVoterAccess/$(voterUid)).data.turmaId == get(/databases/$(database)/documents/polls/$(pollId)).data.turmaId
+          && request.auth.token.email is string
+          && get(/databases/$(database)/documents/pollVoterAccess/$(voterUid)).data.email == request.auth.token.email.lower()
           && request.resource.data.keys().hasOnly(['optionIndex', 'createdAt'])
           && request.resource.data.keys().hasAll(['optionIndex', 'createdAt'])
           && request.resource.data.optionIndex is int
@@ -196,6 +201,44 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time;
         allow update, delete: if false;
       }
+    }
+
+    // O próprio aluno solicita acesso; a aprovação e a revogação cabem apenas
+    // ao representante da turma (ou ao super-admin).
+    match /pollVoterAccess/{uid} {
+      allow get: if (isSignedIn() && request.auth.uid == uid) || canManage(resource.data.turmaId);
+      allow list: if canManage(resource.data.turmaId);
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.auth.token.email is string
+        && request.resource.data.keys().hasOnly(['email', 'turmaId', 'status', 'requestedAt'])
+        && request.resource.data.keys().hasAll(['email', 'turmaId', 'status', 'requestedAt'])
+        && request.resource.data.email == request.auth.token.email.lower()
+        && isKnownAgendaTurma(request.resource.data.turmaId)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt == request.time;
+      allow update: if (
+          isSignedIn()
+          && request.auth.uid == uid
+          && request.auth.token.email is string
+          && resource.data.email == request.auth.token.email.lower()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['turmaId', 'status', 'requestedAt'])
+          && (resource.data.status in ['rejected', 'revoked'] || request.resource.data.turmaId != resource.data.turmaId)
+          && isKnownAgendaTurma(request.resource.data.turmaId)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.requestedAt == request.time
+        ) || (
+          canManage(resource.data.turmaId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy'])
+          && request.resource.data.reviewedAt == request.time
+          && request.resource.data.reviewedBy == request.auth.uid
+          && (
+            (resource.data.status == 'pending' && request.resource.data.status in ['approved', 'rejected'])
+            || (resource.data.status == 'approved' && request.resource.data.status == 'revoked')
+            || (resource.data.status in ['rejected', 'revoked'] && request.resource.data.status == 'approved')
+          )
+        );
+      allow delete: if false;
     }
 
     match /suggestions/{suggestionId} {
