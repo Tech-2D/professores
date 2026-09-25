@@ -151,6 +151,53 @@ service cloud.firestore {
       allow delete: if canManageActivity(resource.data);
     }
 
+    // Enquetes por turma: representantes da turma ou super-admin publicam/encerram;
+    // qualquer pessoa lê os resultados e cada UID registra só um voto imutável.
+    function isValidPollOption(option) {
+      return option is string && option.size() > 0 && option.size() <= 100;
+    }
+
+    function isValidPoll(data) {
+      return data.keys().hasOnly(['turmaId', 'question', 'options', 'status', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['turmaId', 'question', 'options', 'status', 'createdBy', 'createdAt'])
+        && isKnownAgendaTurma(data.turmaId)
+        && data.question is string && data.question.size() > 0 && data.question.size() <= 160
+        && data.options is list && data.options.size() >= 2 && data.options.size() <= 5
+        && isValidPollOption(data.options[0]) && isValidPollOption(data.options[1])
+        && (data.options.size() < 3 || isValidPollOption(data.options[2]))
+        && (data.options.size() < 4 || isValidPollOption(data.options[3]))
+        && (data.options.size() < 5 || isValidPollOption(data.options[4]))
+        && data.status == 'open'
+        && data.createdBy == request.auth.uid
+        && data.createdAt == request.time;
+    }
+
+    match /polls/{pollId} {
+      allow get, list: if true;
+      allow create: if isSignedIn()
+        && canManage(request.resource.data.turmaId)
+        && isValidPoll(request.resource.data);
+      allow update: if canManage(resource.data.turmaId)
+        && resource.data.status == 'open'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'closed';
+      allow delete: if false;
+
+      match /votes/{voterUid} {
+        allow get, list: if true;
+        allow create: if isSignedIn()
+          && request.auth.uid == voterUid
+          && get(/databases/$(database)/documents/polls/$(pollId)).data.status == 'open'
+          && request.resource.data.keys().hasOnly(['optionIndex', 'createdAt'])
+          && request.resource.data.keys().hasAll(['optionIndex', 'createdAt'])
+          && request.resource.data.optionIndex is int
+          && request.resource.data.optionIndex >= 0
+          && request.resource.data.optionIndex < get(/databases/$(database)/documents/polls/$(pollId)).data.options.size()
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+
     match /suggestions/{suggestionId} {
       allow get: if true;
       allow list: if canManage(resource.data.turmaId);
