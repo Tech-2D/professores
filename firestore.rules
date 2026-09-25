@@ -277,6 +277,24 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // Histórico imutável de novidades da Agenda. Só o super-admin publica;
+    // visitantes leem sem login para ver a novidade antes de escolher a turma.
+    match /agendaUpdates/{updateId} {
+      allow get, list: if true;
+      allow create: if isSuperAdmin()
+        && request.resource.data.keys().hasOnly(['title', 'body', 'createdBy', 'publishedAt'])
+        && request.resource.data.keys().hasAll(['title', 'body', 'createdBy', 'publishedAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 2000
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.publishedAt == request.time;
+      allow update, delete: if false;
+    }
+
     // Caderno Infinito: leitura pública; publicação autenticada e edição apenas pelo autor.
     function isValidNotebookNote(data) {
       return data.keys().hasOnly(['title', 'content', 'subject', 'className', 'authorUid', 'authorEmail', 'createdAt', 'updatedAt'])
