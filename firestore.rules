@@ -175,6 +175,29 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Cada representante define apenas o prazo da própria turma.
+    match /activityRetention/{turmaId} {
+      allow get: if canManage(turmaId);
+      allow list: if false;
+      allow create, update: if canManage(turmaId)
+        && isKnownAgendaTurma(turmaId)
+        && request.resource.data.keys().hasOnly(['turmaId', 'days', 'enabled', 'updatedBy', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['turmaId', 'days', 'enabled', 'updatedBy', 'updatedAt'])
+        && request.resource.data.turmaId == turmaId
+        && request.resource.data.days is int
+        && request.resource.data.days >= 30
+        && request.resource.data.days <= 730
+        && request.resource.data.enabled is bool
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Backups do expurgo: acesso apenas pelo Admin SDK, nunca pelo navegador.
+    match /purgedActivities/{activityId} {
+      allow read, write: if false;
+    }
+
     // Enquetes por turma: representantes da turma ou super-admin publicam/encerram;
     // qualquer pessoa lê os resultados e cada UID registra só um voto imutável.
     function isValidPollOption(option) {
