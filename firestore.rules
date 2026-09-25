@@ -151,6 +151,30 @@ service cloud.firestore {
       allow delete: if canManageActivity(resource.data);
     }
 
+    // Modelos semanais; o cron com Admin SDK cria/remove ocorrências em activities.
+    match /recurringActivities/{recurrenceId} {
+      allow get, list: if canManage(resource.data.turmaId);
+      allow create: if canManage(request.resource.data.turmaId)
+        && isKnownAgendaTurma(request.resource.data.turmaId)
+        && request.resource.data.keys().hasOnly(['title', 'description', 'type', 'subject', 'time', 'turmaId', 'startDate', 'endDate', 'active', 'createdBy', 'createdByEmail', 'createdAt'])
+        && request.resource.data.keys().hasAll(['title', 'description', 'type', 'subject', 'time', 'turmaId', 'startDate', 'endDate', 'active', 'createdBy', 'createdByEmail', 'createdAt'])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+        && request.resource.data.description is string && request.resource.data.description.size() <= 2000
+        && request.resource.data.type in ['tarefa', 'licao', 'trabalho', 'prova', 'evento']
+        && (request.resource.data.subject == null || (request.resource.data.subject is string && request.resource.data.subject.size() > 0 && request.resource.data.subject.size() <= 120))
+        && (request.resource.data.time == null || (request.resource.data.time is string && request.resource.data.time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')))
+        && request.resource.data.startDate is string && request.resource.data.startDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (request.resource.data.endDate == null || (request.resource.data.endDate is string && request.resource.data.endDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && request.resource.data.endDate >= request.resource.data.startDate))
+        && request.resource.data.active == true
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByEmail == request.auth.token.email
+        && request.resource.data.createdAt == request.time;
+      allow update: if canManage(resource.data.turmaId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+        && request.resource.data.active is bool;
+      allow delete: if false;
+    }
+
     // Enquetes por turma: representantes da turma ou super-admin publicam/encerram;
     // qualquer pessoa lê os resultados e cada UID registra só um voto imutável.
     function isValidPollOption(option) {
