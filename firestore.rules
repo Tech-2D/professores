@@ -83,14 +83,22 @@ service cloud.firestore {
     }
 
     function isValidFeedback(data) {
-      return data.keys().hasOnly(['message', 'turmaId', 'createdAt', 'createdBy', 'createdByEmail'])
+      return data.keys().hasOnly(['message', 'turmaId', 'createdAt', 'createdBy', 'createdByEmail', 'publicCreditAllowed', 'publicCreditName'])
         && data.keys().hasAll(['message', 'turmaId', 'createdAt', 'createdBy', 'createdByEmail'])
         && data.message is string && data.message.size() > 0 && data.message.size() <= 2000
         && (data.turmaId == null || (data.turmaId is string && data.turmaId.size() > 0))
         && data.createdBy == request.auth.uid
         && request.auth.token.email is string
         && data.createdByEmail == request.auth.token.email
-        && data.createdAt == request.time;
+        && data.createdAt == request.time
+        && (!data.keys().hasAny(['publicCreditAllowed', 'publicCreditName']) || (
+          data.keys().hasAll(['publicCreditAllowed', 'publicCreditName'])
+          && data.publicCreditAllowed is bool
+          && data.publicCreditName is string
+          && data.publicCreditName.size() <= 60
+          && !data.publicCreditName.matches('.*@.*')
+          && (!data.publicCreditAllowed || data.publicCreditName.size() > 0)
+        ));
     }
 
     function isValidAnnouncement(data) {
@@ -337,7 +345,14 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidFeedback(request.resource.data);
       allow get, list: if isSuperAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
       allow delete: if isSuperAdmin() && !resource.data.keys().hasAny(['createdBy']);
-      allow update: if false;
+      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publicCreditAllowed', 'publicCreditName'])
+        && request.resource.data.keys().hasAll(['publicCreditAllowed', 'publicCreditName'])
+        && request.resource.data.publicCreditAllowed is bool
+        && request.resource.data.publicCreditName is string
+        && request.resource.data.publicCreditName.size() <= 60
+        && !request.resource.data.publicCreditName.matches('.*@.*')
+        && (!request.resource.data.publicCreditAllowed || request.resource.data.publicCreditName.size() > 0);
       match /messages/{messageId} {
         function canConverse() {
           return isSignedIn() && (isSuperAdmin()
@@ -368,7 +383,7 @@ service cloud.firestore {
     match /agendaUpdates/{updateId} {
       allow get, list: if true;
       allow create: if isSuperAdmin()
-        && request.resource.data.keys().hasOnly(['title', 'body', 'createdBy', 'publishedAt'])
+        && request.resource.data.keys().hasOnly(['title', 'body', 'createdBy', 'publishedAt', 'sourceFeedbackId', 'sourceName', 'sourceMessage'])
         && request.resource.data.keys().hasAll(['title', 'body', 'createdBy', 'publishedAt'])
         && request.resource.data.title is string
         && request.resource.data.title.size() > 0
@@ -377,7 +392,16 @@ service cloud.firestore {
         && request.resource.data.body.size() > 0
         && request.resource.data.body.size() <= 2000
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.publishedAt == request.time;
+        && request.resource.data.publishedAt == request.time
+        && (!request.resource.data.keys().hasAny(['sourceFeedbackId', 'sourceName', 'sourceMessage']) || (
+          request.resource.data.keys().hasAll(['sourceFeedbackId', 'sourceName', 'sourceMessage'])
+          && request.resource.data.sourceFeedbackId is string
+          && request.resource.data.sourceName is string
+          && request.resource.data.sourceMessage is string
+          && get(/databases/$(database)/documents/feedback/$(request.resource.data.sourceFeedbackId)).data.publicCreditAllowed == true
+          && get(/databases/$(database)/documents/feedback/$(request.resource.data.sourceFeedbackId)).data.publicCreditName == request.resource.data.sourceName
+          && get(/databases/$(database)/documents/feedback/$(request.resource.data.sourceFeedbackId)).data.message == request.resource.data.sourceMessage
+        ));
       allow update, delete: if false;
     }
 
