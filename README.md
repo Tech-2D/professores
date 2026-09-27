@@ -11,7 +11,7 @@ Aplicação web para consultar em qual sala cada professor está, com busca por 
 
 ## Configurar o Firebase
 
-Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase central, `d-tech-56a76`, mantendo coleções separadas no mesmo Firestore.
+Os sites **Cadê o professor?** e **Agenda** usam o mesmo projeto Firebase central, `d-tech-8555e`, mantendo coleções separadas no mesmo Firestore.
 
 1. No Console do Firebase, abra **Authentication > Sign-in method** e habilite **E-mail/senha**.
 2. Em **Authentication > Users**, crie cada usuário administrador com seu próprio e-mail e senha. A senha é definida apenas no Firebase e nunca vai para o código ou para o Firestore.
@@ -75,7 +75,7 @@ python scripts/generate-schedules.py "caminho/da/planilha.xlsx" data/horarios-tu
 
 ## Centralizar os bancos Firestore
 
-O script [scripts/migrate-firestore.py](scripts/migrate-firestore.py) usa snapshots JSON retomáveis para copiar todas as coleções, documentos e subcoleções dos projetos `procurar-professores-5c04a` e `agenda-2e1df` para `d-tech-56a76`, preservando os IDs e os tipos dos campos.
+O script histórico [scripts/migrate-firestore.py](scripts/migrate-firestore.py) usa snapshots JSON retomáveis para copiar todas as coleções, documentos e subcoleções dos projetos `procurar-professores-5c04a` e `agenda-2e1df` para `d-tech-56a76`, preservando os IDs e os tipos dos campos. Para a migração do banco central ao projeto novo, consulte [docs/migracao-central.md](docs/migracao-central.md).
 
 As configurações web (`apiKey`, `authDomain`, `projectId` etc.) identificam os aplicativos, mas não concedem acesso administrativo. Gere uma chave privada em **Configurações do projeto > Contas de serviço > Gerar nova chave privada** em cada um dos três projetos. Guarde os arquivos fora do Git; a pasta `firebase-credentials/` está ignorada pelo repositório.
 
