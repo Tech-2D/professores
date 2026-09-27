@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { FirebaseError } from 'firebase/app'
+import { requestPasswordReset } from './passwordReset'
 import {
   addDoc,
   collection,
@@ -451,6 +452,22 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
     }
   }
 
+  async function recoverPassword() {
+    if (!email.trim()) {
+      setAuthError('Informe seu e-mail para recuperar a senha.')
+      return
+    }
+    setBusy(true)
+    setAuthError('')
+    setNotice('')
+    try {
+      await requestPasswordReset(email.trim())
+      setNotice('Se houver uma conta com esse e-mail, você receberá um link para redefinir a senha.')
+    } catch {
+      setAuthError('Não foi possível enviar o link agora. Tente novamente.')
+    } finally { setBusy(false) }
+  }
+
   function startCreate() {
     setEditing(null)
     setForm({ ...emptyForm, dayOfWeek: new Date().getDay() || 1 })
@@ -581,7 +598,9 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
             <label htmlFor="admin-password">Senha</label>
             <input id="admin-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
             {authError && <p className="form-error">{authError}</p>}
+            {notice && <p className="form-notice" role="status">{notice}</p>}
             <button className="primary-button" disabled={busy}>{busy ? <LoaderCircle className="spin" /> : <>Entrar <ArrowRight /></>}</button>
+            <button type="button" className="secondary-button" disabled={busy} onClick={recoverPassword}>Esqueci minha senha</button>
           </form>
         ) : !isAdmin ? (
           <div className="unauthorized">
