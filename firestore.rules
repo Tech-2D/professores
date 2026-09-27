@@ -335,8 +335,25 @@ service cloud.firestore {
 
     match /feedback/{feedbackId} {
       allow create: if isSignedIn() && isValidFeedback(request.resource.data);
-      allow get, list, delete: if isSuperAdmin();
+      allow get, list: if isSuperAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
+      allow delete: if isSuperAdmin() && !resource.data.keys().hasAny(['createdBy']);
       allow update: if false;
+      match /messages/{messageId} {
+        function canConverse() {
+          return isSignedIn() && (isSuperAdmin()
+            || get(/databases/$(database)/documents/feedback/$(feedbackId)).data.createdBy == request.auth.uid);
+        }
+        allow get: if canConverse();
+        allow list: if canConverse() && request.query.limit != null && request.query.limit <= 100;
+        allow create: if canConverse()
+          && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt'])
+          && request.resource.data.keys().hasAll(['text', 'senderId', 'createdAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
     }
 
     match /announcement/{announcementId} {
