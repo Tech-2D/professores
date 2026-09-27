@@ -462,7 +462,7 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
     setNotice('')
     try {
       await requestPasswordReset(email.trim())
-      setNotice('Se houver uma conta com esse e-mail, você receberá um link para redefinir a senha.')
+      setNotice('Se houver uma conta com esse e-mail, você receberá um link para redefinir a senha. Confira também a pasta de spam ou lixo eletrônico.')
     } catch {
       setAuthError('Não foi possível enviar o link agora. Tente novamente.')
     } finally { setBusy(false) }
