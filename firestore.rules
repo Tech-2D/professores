@@ -355,14 +355,23 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidFeedback(request.resource.data);
       allow get, list: if isSuperAdmin() || (isSignedIn() && resource.data.createdBy == request.auth.uid);
       allow delete: if isSuperAdmin() && !resource.data.keys().hasAny(['createdBy']);
-      allow update: if isSignedIn() && resource.data.createdBy == request.auth.uid
+      allow update: if (isSuperAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedBy'])
+        && request.resource.data.keys().hasAll(['status', 'completedAt', 'completedBy'])
+        && ((request.resource.data.status == 'completed'
+          && request.resource.data.completedAt == request.time
+          && request.resource.data.completedBy == request.auth.uid)
+          || (request.resource.data.status == 'pending'
+            && request.resource.data.completedAt == null
+            && request.resource.data.completedBy == null)))
+        || (isSignedIn() && resource.data.createdBy == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['publicCreditAllowed', 'publicCreditName'])
         && request.resource.data.keys().hasAll(['publicCreditAllowed', 'publicCreditName'])
         && request.resource.data.publicCreditAllowed is bool
         && request.resource.data.publicCreditName is string
         && request.resource.data.publicCreditName.size() <= 60
         && !request.resource.data.publicCreditName.matches('.*@.*')
-        && (!request.resource.data.publicCreditAllowed || request.resource.data.publicCreditName.size() > 0);
+        && (!request.resource.data.publicCreditAllowed || request.resource.data.publicCreditName.size() > 0));
       match /messages/{messageId} {
         function canConverse() {
           return isSignedIn() && (isSuperAdmin()
