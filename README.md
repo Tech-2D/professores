@@ -53,6 +53,17 @@ Cada documento da coleção `schedules` usa este formato:
 
 `dayOfWeek` segue o padrão do JavaScript: `1` é segunda-feira e `6` é sábado.
 
+## Abrir direto numa turma ou visão (link de atalho)
+
+A URL aceita dois parâmetros opcionais, para outro site (como a Agenda) linkar direto para o resultado certo:
+
+- `turma`: nome exato de uma turma válida (ex.: `2º Tec D`). Se reconhecida, também fica salva como a turma preferida, do mesmo jeito que escolher no seletor.
+- `view`: `hoje` abre direto na grade do dia; `agora` abre já em "Em aula agora". Qualquer outro valor (ou ausência do parâmetro) mantém a grade semanal, o padrão de sempre.
+
+Exemplo: `https://tech-2d.github.io/professores/?turma=2%C2%BA%20Tec%20D&view=hoje`.
+
+A turma também já é compartilhada automaticamente com a Agenda pelo `localStorage` (mesma origem `tech-2d.github.io`), então normalmente nem é preciso passar `turma` — só `view` já basta se a pessoa já escolheu a turma antes em algum dos dois sites.
+
 ## Importar a planilha de turmas
 
 O arquivo [data/horarios-turmas.json](data/horarios-turmas.json) foi extraído da planilha **Class schedule - August 24th - All Classes.xlsx**. Contém 1.369 aulas de 44 turmas. Na área administrativa, escolha esse JSON e clique em **Cadastrar horários**. A importação valida os registros, envia em lotes e, ao reenviar o arquivo, atualiza o status ativo/inativo dos horários já cadastrados sem apagar a localização preenchida manualmente.

@@ -40,6 +40,7 @@ import { readPreferredClass, savePreferredClass } from './classPreference'
 import { importDocumentId, parseSchedulesJson } from './importSchedules'
 import { isHappeningNow, matchesSearch, timeToMinutes } from './schedule'
 import { WEEKDAYS, type Schedule, type ScheduleInput } from './types'
+import { readClassParam, readViewParam, type View } from './viewParams'
 import {
   NEON_COLORS,
   NEON_COLOR_LABELS,
@@ -66,17 +67,15 @@ const emptyForm: ScheduleInput = {
   active: true,
 }
 
-type View = 'now' | 'today' | 'all'
-
 function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
-  const [classFilter, setClassFilter] = useState<string>(() => readPreferredClass() ?? CLASS_NAMES[0])
+  const [classFilter, setClassFilter] = useState<string>(() => readClassParam() ?? readPreferredClass() ?? CLASS_NAMES[0])
   const [subjectFilter, setSubjectFilter] = useState('')
   const [dayFilter, setDayFilter] = useState(0)
-  const [view, setView] = useState<View>('all')
+  const [view, setView] = useState<View>(readViewParam)
   const [adminOpen, setAdminOpen] = useState(window.location.hash === '#admin')
   const [menuOpen, setMenuOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
@@ -90,6 +89,11 @@ function App() {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const fromUrl = readClassParam()
+    if (fromUrl) savePreferredClass(fromUrl)
   }, [])
 
   useEffect(() => {
