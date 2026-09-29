@@ -110,7 +110,7 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             <label>Empresa<input value={fields.company} onChange={e => setFields({ ...fields, company: e.target.value })} maxLength={100} /></label>
             <label>Turma<input value={fields.className} onChange={e => setFields({ ...fields, className: e.target.value })} maxLength={80} /></label>
             <div className="profiles-pair"><label>Sala<input value={fields.room} onChange={e => setFields({ ...fields, room: e.target.value })} maxLength={80} /></label><label>Andar<input value={fields.floor} onChange={e => setFields({ ...fields, floor: e.target.value })} maxLength={30} /></label></div>
-            <p>Ao salvar, nome, empresa, turma, sala, andar e foto ficarão públicos na Agenda e no Cadê o professor. Seu e-mail não será exibido.</p>
+            <p>Ao salvar, nome, empresa, turma, sala e andar ficarão públicos na Agenda e no Cadê o professor. Quando o envio de fotos for liberado, sua foto também será pública. Seu e-mail não será exibido.</p>
             <button type="submit" disabled={busy}>Publicar perfil</button>
             {PHOTO_ENABLED ? <div className="profiles-photo"><strong>Foto</strong>{mine?.photoUrl && <img src={mine.photoUrl} alt="Sua foto de perfil" />}
               <label className="profiles-file">{mine?.photoUrl ? 'Trocar foto' : 'Adicionar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || !mine} onChange={e => { void changePhoto(e.target.files?.[0] || null); e.target.value = '' }} /></label>
