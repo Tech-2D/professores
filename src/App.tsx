@@ -21,6 +21,7 @@ import {
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { FirebaseError } from 'firebase/app'
 import { requestPasswordReset } from './passwordReset'
+import { ProfileDialog } from './ProfileDialog'
 import {
   addDoc,
   collection,
@@ -80,6 +81,7 @@ function App() {
   const [adminOpen, setAdminOpen] = useState(window.location.hash === '#admin')
   const [menuOpen, setMenuOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
+  const [profilesOpen, setProfilesOpen] = useState(false)
   const [theme, setThemeState] = useState<Theme>(readStoredTheme)
   const [neon, setNeonState] = useState<NeonColor>(readStoredNeon)
   const [user, setUser] = useState<User | null>(null)
@@ -269,6 +271,7 @@ function App() {
           theme={theme}
           onClose={() => setMenuOpen(false)}
           onOpenConfig={() => { setMenuOpen(false); setConfigOpen(true) }}
+          onOpenProfiles={() => { setMenuOpen(false); setProfilesOpen(true) }}
           onOpenAdmin={() => { setMenuOpen(false); openAdmin() }}
         />
       )}
@@ -281,6 +284,7 @@ function App() {
           onClose={() => setConfigOpen(false)}
         />
       )}
+      {profilesOpen && <ProfileDialog onClose={() => setProfilesOpen(false)} />}
 
       {adminOpen && (
         <AdminDialog
@@ -318,7 +322,7 @@ function EmptyState({ view, search }: { view: View; search: string }) {
   )
 }
 
-function SideMenu({ theme, onClose, onOpenConfig, onOpenAdmin }: { theme: Theme; onClose: () => void; onOpenConfig: () => void; onOpenAdmin: () => void }) {
+function SideMenu({ theme, onClose, onOpenConfig, onOpenProfiles, onOpenAdmin }: { theme: Theme; onClose: () => void; onOpenConfig: () => void; onOpenProfiles: () => void; onOpenAdmin: () => void }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKeyDown)
@@ -338,6 +342,7 @@ function SideMenu({ theme, onClose, onOpenConfig, onOpenAdmin }: { theme: Theme;
             <Settings size={18} /> Configurações
             <span className="menu-current-theme">{THEME_LABELS[theme]}</span>
           </button>
+          <button type="button" onClick={onOpenProfiles}><UserRound size={18} /> Perfis da comunidade</button>
           <button type="button" onClick={onOpenAdmin}><KeyRound size={18} /> Área administrativa</button>
           <a href="https://tech-2d.github.io/Agenda/" target="_blank" rel="noopener noreferrer"><CalendarDays size={18} /> Agenda da turma <ArrowRight size={15} className="menu-external-icon" /></a>
         </nav>
