@@ -58,7 +58,7 @@ Cada documento da coleção `schedules` usa este formato:
 A URL aceita dois parâmetros opcionais, para outro site (como a Agenda) linkar direto para o resultado certo:
 
 - `turma`: nome exato de uma turma válida (ex.: `2º Tec D`). Se reconhecida, também fica salva como a turma preferida, do mesmo jeito que escolher no seletor.
-- `view`: `hoje` abre direto na grade do dia; `agora` abre já em "Em aula agora". Qualquer outro valor (ou ausência do parâmetro) mantém a grade semanal, o padrão de sempre.
+- `view`: `agora` abre já em "Em aula agora"; `semana` abre a grade da semana inteira. Sem o parâmetro (ou com um valor desconhecido), abre em "Hoje" — o padrão do site.
 
 Exemplo: `https://tech-2d.github.io/professores/?turma=2%C2%BA%20Tec%20D&view=hoje`.
 

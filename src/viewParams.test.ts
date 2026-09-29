@@ -13,13 +13,15 @@ describe('parâmetros de URL para abrir direto numa turma/visão', () => {
     expect(readViewParam()).toBe('today')
     mockSearch('?view=agora')
     expect(readViewParam()).toBe('now')
+    mockSearch('?view=semana')
+    expect(readViewParam()).toBe('all')
   })
 
-  it('usa a grade semanal quando não há visão pedida ou o valor é desconhecido', () => {
+  it('usa a grade de hoje quando não há visão pedida ou o valor é desconhecido', () => {
     mockSearch('')
-    expect(readViewParam()).toBe('all')
+    expect(readViewParam()).toBe('today')
     mockSearch('?view=mensal')
-    expect(readViewParam()).toBe('all')
+    expect(readViewParam()).toBe('today')
   })
 
   it('lê a turma pedida na URL, só se for uma turma conhecida', () => {
