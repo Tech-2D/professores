@@ -4,7 +4,6 @@ import { auth } from './firebase'
 import './profiles.css'
 
 const API = 'https://tech-2d-auth-email.vercel.app'
-const PHOTO_ENABLED = false // Enable only after a scoped Cloudinary key is configured on the API.
 type Profile = { uid: string; displayName: string; company: string; className: string; room: string; floor: string; photoUrl: string | null }
 type Fields = Pick<Profile, 'displayName' | 'company' | 'className' | 'room' | 'floor'>
 const empty: Fields = { displayName: '', company: '', className: '', room: '', floor: '' }
@@ -110,13 +109,13 @@ export function ProfileDialog({ onClose }: { onClose: () => void }) {
             <label>Empresa<input value={fields.company} onChange={e => setFields({ ...fields, company: e.target.value })} maxLength={100} /></label>
             <label>Turma<input value={fields.className} onChange={e => setFields({ ...fields, className: e.target.value })} maxLength={80} /></label>
             <div className="profiles-pair"><label>Sala<input value={fields.room} onChange={e => setFields({ ...fields, room: e.target.value })} maxLength={80} /></label><label>Andar<input value={fields.floor} onChange={e => setFields({ ...fields, floor: e.target.value })} maxLength={30} /></label></div>
-            <p>Ao salvar, nome, empresa, turma, sala e andar ficarão públicos na Agenda e no Cadê o professor. Quando o envio de fotos for liberado, sua foto também será pública. Seu e-mail não será exibido.</p>
+            <p>Ao salvar, nome, empresa, turma, sala, andar e foto ficarão públicos na Agenda e no Cadê o professor. Seu e-mail não será exibido.</p>
             <button type="submit" disabled={busy}>Publicar perfil</button>
-            {PHOTO_ENABLED ? <div className="profiles-photo"><strong>Foto</strong>{mine?.photoUrl && <img src={mine.photoUrl} alt="Sua foto de perfil" />}
+            <div className="profiles-photo"><strong>Foto</strong>{mine?.photoUrl && <img src={mine.photoUrl} alt="Sua foto de perfil" />}
               <label className="profiles-file">{mine?.photoUrl ? 'Trocar foto' : 'Adicionar foto'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || !mine} onChange={e => { void changePhoto(e.target.files?.[0] || null); e.target.value = '' }} /></label>
               {mine?.photoUrl && <button type="button" className="profiles-link" disabled={busy} onClick={removePhoto}>Remover foto</button>}
               {!mine && <small>Publique o nome antes de enviar uma foto (até 2 MB).</small>}
-            </div> : <p>O envio da foto será liberado depois que a conexão segura com o Cloudinary estiver pronta.</p>}
+            </div>
           </form>}
           {error && <p role="alert" className="profiles-error">{error}</p>}{notice && <p role="status" className="profiles-notice">{notice}</p>}
         </section>
