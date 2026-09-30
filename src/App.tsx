@@ -22,6 +22,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { FirebaseError } from 'firebase/app'
 import { requestPasswordReset } from './passwordReset'
 import { ProfileDialog } from './ProfileDialog'
+import { observeCatalog, invalidateCatalog } from './publicQueries'
 import {
   addDoc,
   collection,
@@ -32,7 +33,6 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
@@ -72,6 +72,7 @@ function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [cacheNotice, setCacheNotice] = useState('')
   const [search, setSearch] = useState('')
   const [classFilter, setClassFilter] = useState<string>(() => readClassParam() ?? readPreferredClass() ?? CLASS_NAMES[0])
   const [subjectFilter, setSubjectFilter] = useState('')
@@ -87,7 +88,6 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [now, setNow] = useState(new Date())
-  const publicDay = view === 'all' ? null : now.getDay()
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
@@ -127,13 +127,20 @@ function App() {
 
   useEffect(() => {
     setLoading(true)
-    const schedulesQuery = isAdmin
-      ? query(collection(db, 'schedules'))
-      : classFilter
-        ? query(collection(db, 'schedules'), where('className', '==', classFilter))
-        : publicDay !== null
-          ? query(collection(db, 'schedules'), where('dayOfWeek', '==', publicDay))
-          : query(collection(db, 'schedules'), where('active', '==', true))
+    let loaded = false
+    if (!isAdmin) return observeCatalog<{ schedules: Schedule[] }>('schedules', (data) => {
+      loaded = true
+      setSchedules(data.schedules)
+      setLoading(false)
+      setLoadError('')
+      setCacheNotice(data.meta.stale ? 'Exibindo os últimos horários disponíveis. A atualização está temporariamente indisponível.' : '')
+    }, () => {
+      setLoading(false)
+      if (loaded) setCacheNotice('Exibindo os últimos horários carregados. Não foi possível atualizá-los agora.')
+      else setLoadError('Não foi possível atualizar os horários. Tente novamente em alguns minutos.')
+    })
+    setCacheNotice('')
+    const schedulesQuery = query(collection(db, 'schedules'))
     return onSnapshot(
       schedulesQuery,
       (snapshot) => {
@@ -146,7 +153,7 @@ function App() {
         setLoadError('Não foi possível carregar os horários. Confira a conexão e as regras do Firestore.')
       },
     )
-  }, [isAdmin, classFilter, publicDay])
+  }, [isAdmin])
 
   useEffect(() => {
     let requestId = 0
@@ -264,6 +271,7 @@ function App() {
             <span>{view === 'now' ? now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : `${visibleSchedules.length} ${visibleSchedules.length === 1 ? 'horário' : 'horários'}`}</span>
           </div>
 
+          {cacheNotice && <p className="form-notice" role="status">{cacheNotice}</p>}
           {loading ? <div className="state-card"><LoaderCircle className="spin" /><p>Consultando os horários…</p></div>
             : loadError ? <div className="state-card error"><DoorOpen /><p>{loadError}</p></div>
             : visibleSchedules.length === 0 ? <EmptyState view={view} search={search} />
@@ -515,6 +523,7 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
         setNotice('Horário adicionado.')
       }
       setFormOpen(false)
+      if (!await invalidateCatalog('schedules')) setNotice('Horário salvo. A consulta pública será atualizada na próxima renovação do cache.')
       window.setTimeout(() => setNotice(''), 2800)
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar o horário.')
@@ -527,6 +536,7 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
     if (!window.confirm(`Excluir o horário de ${schedule.professor}?`)) return
     try {
       await deleteDoc(doc(db, 'schedules', schedule.id))
+      await invalidateCatalog('schedules')
       setNotice('Horário excluído.')
       window.setTimeout(() => setNotice(''), 2800)
     } catch {
@@ -589,6 +599,7 @@ function AdminDialog({ schedules, user, isAdmin, authChecked, onClose }: AdminDi
     } catch {
       setImportError(`A importação parou após ${processed} horários. Confira a conexão e as permissões antes de tentar novamente.`)
     } finally {
+      if (processed > 0) await invalidateCatalog('schedules')
       setBusy(false)
     }
   }

@@ -18,3 +18,4 @@ __pycache__/
 
 # Repositório independente da API de autenticação
 /auth-email-api/
+/consultas-api/
