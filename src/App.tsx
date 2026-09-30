@@ -87,6 +87,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [now, setNow] = useState(new Date())
+  const publicDay = view === 'all' ? null : now.getDay()
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
@@ -125,9 +126,14 @@ function App() {
   }
 
   useEffect(() => {
+    setLoading(true)
     const schedulesQuery = isAdmin
       ? query(collection(db, 'schedules'))
-      : query(collection(db, 'schedules'), where('active', '==', true))
+      : classFilter
+        ? query(collection(db, 'schedules'), where('className', '==', classFilter))
+        : publicDay !== null
+          ? query(collection(db, 'schedules'), where('dayOfWeek', '==', publicDay))
+          : query(collection(db, 'schedules'), where('active', '==', true))
     return onSnapshot(
       schedulesQuery,
       (snapshot) => {
@@ -140,7 +146,7 @@ function App() {
         setLoadError('Não foi possível carregar os horários. Confira a conexão e as regras do Firestore.')
       },
     )
-  }, [isAdmin])
+  }, [isAdmin, classFilter, publicDay])
 
   useEffect(() => {
     let requestId = 0
