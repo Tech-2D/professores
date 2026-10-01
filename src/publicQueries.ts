@@ -1,6 +1,6 @@
 import { auth } from './firebase'
+import { catalogWriteEndpoint, fetchCatalog } from './catalogTransport'
 
-const API = import.meta.env.VITE_PUBLIC_QUERY_API_URL?.trim() || 'https://tech-2d-consultas.tech-2d-auth-email.workers.dev/api/catalog'
 export type CatalogMeta = { generatedAt: string; stale: boolean }
 const CHANGED = 'tech2d-public-catalog-changed'
 
@@ -20,8 +20,6 @@ export function observeCatalog<T>(resource: 'schedules' | 'agenda' | 'updates', 
   let lastAttempt = 0
   let nextAllowed = 0
   const abort = new AbortController()
-  const url = new URL(`${API}/${resource}`)
-  if (className) url.searchParams.set('class', className)
   async function poll() {
     if (stopped || running || document.hidden) return
     clearTimeout(timer)
@@ -34,7 +32,7 @@ export function observeCatalog<T>(resource: 'schedules' | 'agenda' | 'updates', 
     lastAttempt = Date.now()
     let delay = 60000
     try {
-      const response = await fetch(url, { signal: AbortSignal.any([abort.signal, AbortSignal.timeout(70000)]) })
+      const response = await fetchCatalog(resource, className, abort.signal)
       if (!response.ok) {
         const retry = Number(response.headers.get('Retry-After'))
         delay = Math.max(60000, Math.min((retry || 120) * 1000, 300000))
@@ -71,7 +69,7 @@ export async function invalidateCatalog(target: 'schedules' | 'agenda'): Promise
   try {
     const token = await auth.currentUser?.getIdToken()
     if (!token) return false
-    const result = await fetch(`${API}/invalidate`, {
+    const result = await fetch(`${catalogWriteEndpoint()}/invalidate`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ target }),
