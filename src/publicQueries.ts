@@ -1,6 +1,6 @@
 import { auth } from './firebase'
 
-const API = import.meta.env.VITE_PUBLIC_QUERY_API_URL?.trim() || 'https://tech-2d-agenda-storage.onrender.com/api/catalog'
+const API = import.meta.env.VITE_PUBLIC_QUERY_API_URL?.trim() || 'https://tech-2d-consultas.tech-2d-auth-email.workers.dev/api/catalog'
 export type CatalogMeta = { generatedAt: string; stale: boolean }
 const CHANGED = 'tech2d-public-catalog-changed'
 
