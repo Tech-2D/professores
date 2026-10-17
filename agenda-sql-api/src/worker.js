@@ -36,12 +36,16 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
       return new Response(null, { status: 204, headers })
     }
     const url = new URL(request.url)
-    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true', databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString) })
+    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true', previewReadsEnabled: env.PREVIEW_READS_ENABLED === 'true', databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString) })
     const activity = url.pathname.match(/^\/api\/activities\/([A-Za-z0-9_-]{1,128})$/)
     if (!activity && !supported.has(url.pathname)) return reply({ message: 'Rota não encontrada.' }, 404)
     const allowed = activity ? ['GET', 'PATCH'] : url.pathname === '/api/activities' ? ['POST'] : ['GET']
     if (!allowed.includes(request.method)) return reply({ message: 'Método não permitido.' }, 405)
-    if (env.MIGRATION_READY !== 'true') return reply({ message: 'A migração ainda não foi validada.' }, 503)
+    const previewOnly = env.MIGRATION_READY !== 'true' && env.PREVIEW_READS_ENABLED === 'true'
+    const previewRead = previewOnly && request.method === 'GET' && url.pathname.startsWith('/api/catalog/')
+    if (env.MIGRATION_READY !== 'true' && !previewRead) return reply({ message: 'A migração ainda não foi validada.' }, 503)
+    const meta = () => ({ generatedAt: previewOnly ? env.SNAPSHOT_EXPORTED_AT : new Date().toISOString(),
+      stale: previewOnly, ...(previewOnly ? { preview: true, source: 'postgresql-snapshot', liveSync: false } : {}) })
     const write = request.method !== 'GET'
     if (write && origin !== ORIGIN) return reply({ message: 'Origem obrigatória.' }, 403)
     if (write && env.WRITES_ENABLED !== 'true') return reply({ message: 'Gravação SQL ainda não ativada.' }, 503)
@@ -65,7 +69,7 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
           AND ($2::text IS NULL OR data->>'dayOfWeek' = $2) LIMIT 10001`, [className, day])
         if (result.rows.length > 10000) throw failure(503, 'Catálogo excede o limite da consulta.')
         const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-        return reply({ schedules: result.rows.map(row => publicSchedule(row.id, row.data)).filter(row => !term || ['professor', 'subject', 'className', 'roomDescription', 'floor'].some(key => normalize(row[key]).includes(normalize(term)))), meta: { generatedAt: new Date().toISOString(), stale: false } })
+        return reply({ schedules: result.rows.map(row => publicSchedule(row.id, row.data)).filter(row => !term || ['professor', 'subject', 'className', 'roomDescription', 'floor'].some(key => normalize(row[key]).includes(normalize(term)))), meta: meta() })
       }
       if (url.pathname.startsWith('/api/catalog/')) {
         if ([...url.searchParams.keys()].some(key => key !== 'class') || (url.searchParams.get('class')?.length || 0) > 100) throw failure(400, 'Filtro inválido.')
@@ -79,7 +83,7 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
         return reply({ activities: activities.rows.map(publicActivity), updates,
           classes: documents.rows.filter(row => row.collection === 'agendaClasses' && row.data.active === true && row.data.name === row.id).map(row => row.id),
           announcement: announcement ? { message: announcement.message, updatedAt: announcement.updatedAt ?? null } : null,
-          meta: { generatedAt: new Date().toISOString(), stale: false },
+          meta: meta(),
         })
       }
       if (!profile || !['representante', 'superadmin'].includes(profile.role)) throw failure(403, 'Sem permissão para gerenciar atividades.')

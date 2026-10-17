@@ -55,11 +55,28 @@ npm run verify
 Snapshots ficam em `snapshots/`, ignorados pelo Git. Contêm dados pessoais e possivelmente sessões internas: não enviar ao GitHub, artifacts de CI, ferramentas de análise ou mensagens. No Windows as permissões dependem da ACL da pasta; o modo POSIX 0600 sozinho não garante proteção. Armazenar em pasta de acesso restrito e definir retenção depois de validar a migração.
 
 - A exportação percorre coleções, documentos e subcoleções, inclusive filhos com pais ausentes. Preserva os campos Firestore tipados, timestamps exatos, referências, bytes e inteiros grandes na cópia bruta.
+- Descoberta de subcoleções com até quatro solicitações simultâneas (`--concurrency 1` a `4`); gravação do diário serializada, sem checkpoints antes de todas as gravações da página terminarem.
 - Há checkpoint por página e registro por documento. Não reiniciar continuamente quando ocorrer HTTP 429: aguardar a cota ou resolver o limite na origem.
 - O importador exige marcador de conclusão e contagem consistente. Snapshot incompleto não é importado.
 - Reexecução não sobrescreve importação anterior. Se um documento da origem mudou, interrompe para reconciliação; não substitui automaticamente edições realizadas no SQL.
-- A verificação por SHA-256 compara campos tipados preservados com o **snapshot**, não o Firebase ao vivo. Não confirma sozinha os dados projetados, referências de arquivos ou permissões.
+- A importação usa lotes de até 100 documentos, com uma transação por lote. Um conflito com conteúdo diferente aborta o lote inteiro, preservando o progresso anterior.
+- A verificação por SHA-256 compara campos tipados preservados com o **snapshot**, não o Firebase ao vivo. Também confere separadamente as colunas de atividades (inclusive anexos), papéis/turmas e catálogos SQL. Não verifica a existência física dos objetos R2/Cloudinary.
 - A exportação online não é um snapshot transacional do banco inteiro. Para o corte final: suspender gravações de todos os clientes/serviços, exportar em um **novo arquivo**, reconciliar diferenças/exclusões, conferir novamente e só então mudar o destino de escrita. Não usar a exportação inicial como backup atual.
+
+### Cópia com nome datado e conferência da API
+
+```powershell
+npm run export -- --execute --out snapshots/d-tech-8555e-2026-10-17.jsonl
+npm run import -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl --execute
+npm run verify -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl
+npm run verify:runtime -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl
+npm run verify:runtime -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl --remote
+npm run migration:report -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl
+```
+
+`verify:runtime` exercita o handler da API contra o Aiven real, usando somente o usuário limitado `tech2d_api`, sem gravar nem retornar conteúdo dos documentos no terminal. Compara as respostas públicas de atividades, horários, turmas e atualizações ao snapshot e confere privilégios proibidos. Com `--remote`, consulta somente a URL fixa do Worker por HTTP e compara as projeções públicas, sem ler ou transmitir credenciais SQL locais. Não valida todas as demais funções ainda não implementadas.
+
+`migration:report` confere hashes, projeções e totais do SQL e gera um recibo sem IDs pessoais em `.wrangler/migration-verification-2026-10-17.json`. O recibo registra expressamente que a origem não foi congelada e o corte de produção não aconteceu. Não ativa flags nem altera o frontend.
 
 ## API implementada nesta etapa
 
@@ -130,3 +147,17 @@ O projeto é um ponto de partida testado, não uma declaração de que a migraç
 - Worker publicado: [tech-2d-agenda-sql](https://tech-2d-agenda-sql.tech-2d-auth-email.workers.dev/api/health). Versão `7d32e004-389d-4dc8-8dd5-1492fca4cb17`.
 - Teste externo: `/api/health` retorna 200, `databaseConfigured=true`, `ready=false`, `writesEnabled=false`; `/api/catalog/agenda` retorna o 503 esperado de migração não validada. O health confirma a presença do binding, não executa uma consulta ao banco a cada visita.
 - 19 testes locais passando e bundle Worker validado. O site continua usando o backend antigo e não foi ativado plano pago.
+
+### Cópia conferida em 17/10/2026
+
+- Exportação atual concluída com 3.684 documentos: 3.683 de coleções raiz e 1 de subcoleção. Sem alteração/exclusão na origem.
+- PostgreSQL recebeu 3.684 documentos originais em arquivo privado JSONB e os mesmos 3.684 hashes foram conferidos com o snapshot.
+- Projeções SQL conferidas campo a campo: 127 atividades, 7 perfis administrativos, 1.385 documentos de catálogo (1.369 horários, 15 atualizações e 1 aviso geral).
+- Handler local com o usuário `tech2d_api`: consultas públicas comparadas ao snapshot e privilégios proibidos conferidos. Sem gravações de teste no banco real.
+- Worker remoto: consultas HTTP comparadas ao snapshot com sucesso. Versão `6c0ce427-b060-4c1d-b966-968b6e49766f`.
+- Prévia pública de leitura ativada com `PREVIEW_READS_ENABLED=true`. As respostas se identificam como `preview=true`, `source=postgresql-snapshot`, `liveSync=false` e `stale=true`, com a data da exportação. Não são dados sincronizados em tempo real com o Firestore.
+- `MIGRATION_READY=false` e `WRITES_ENABLED=false` permanecem. Prévia não permite consultas privadas ou gravações, mesmo que o flag de escrita seja ligado por engano sem o flag de migração.
+- 30 testes locais passando. Nenhum frontend, cron ou backend de anexos foi redirecionado nesta etapa. O uso exclusivo de SQL ainda depende dessa adaptação e reconciliação final.
+- Objetos de arquivos continuam no R2 e fotos no Cloudinary; metadados existentes foram preservados. Firebase Authentication não foi alterado.
+
+Consulte também [o relatório da cópia](../docs/sql-migration-2026-10-17.md).

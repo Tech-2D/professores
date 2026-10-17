@@ -15,6 +15,8 @@
     "export": "node scripts/export-firestore.js",
     "import": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js",
     "verify": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js --verify",
+    "verify:runtime": "node scripts/verify-runtime.js",
+    "migration:report": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/migration-report.js",
     "deploy": "node node_modules/wrangler/bin/wrangler.js deploy"
   },
   "dependencies": { "firebase-admin": "^14.5.0", "jose": "^6.1.0", "pg": "^8.16.3" },

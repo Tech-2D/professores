@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { initializeApp, cert } from 'firebase-admin/app'
 import { PROJECT } from '../src/data.js'
 import { reportFailure } from './connection.js'
+import { mapLimited } from '../src/concurrency.js'
 
 // Read-only Firestore REST export. Each durable page checkpoint can be resumed.
 // Contains private data: ignored by Git; never upload as an artifact.
@@ -12,17 +13,22 @@ try {
     key: { type: 'string', default: '../firebase-credentials/2d-tech-novo.json' },
     out: { type: 'string', default: 'snapshots/d-tech-8555e.jsonl' },
     execute: { type: 'boolean', default: false },
+    concurrency: { type: 'string', default: '4' },
   } })
   if (!values.execute) {
     console.log('Modo de preparação. Para ler o Firestore use npm run export -- --execute. Não altera a origem.')
   } else {
+    const concurrency = Number(values.concurrency)
+    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new Error('INVALID_CONCURRENCY')
     const key = JSON.parse(await readFile(values.key, 'utf8'))
     if (key.project_id !== PROJECT) throw new Error('WRONG_FIREBASE_PROJECT')
     const credential = cert(key)
     initializeApp({ credential })
     const target = resolve(values.out)
     await mkdir(dirname(target), { recursive: true })
-    const journal = async record => appendFile(target, JSON.stringify(record) + '\n', { mode: 0o600 })
+    // Serialize durable appends even when child-collection discovery runs concurrently.
+    let appends = Promise.resolve()
+    const journal = record => appends = appends.then(() => appendFile(target, JSON.stringify(record) + '\n', { mode: 0o600 }))
     let text
     try { text = await readFile(target, 'utf8') } catch (error) { if (error.code !== 'ENOENT') throw error }
     if (text && !text.endsWith('\n')) throw new Error('INCOMPLETE_JOURNAL_LINE_REVIEW_REQUIRED')
@@ -73,7 +79,7 @@ try {
           const params = new URLSearchParams({ pageSize: '50', showMissing: 'true' })
           if (pageToken) params.set('pageToken', pageToken)
           const page = await request('/' + encodePath(collection) + '?' + params)
-          for (const document of page.documents || []) {
+          await mapLimited(page.documents || [], concurrency, async document => {
             const path = document.name.split('/documents/')[1]
             if (!path || !path.startsWith(collection + '/')) throw new Error('INVALID_DOCUMENT_PATH')
             let row = documents.get(path)
@@ -85,7 +91,7 @@ try {
               if (!row.missing) count++
             }
             for (const child of row.collections) queue.add(child)
-          }
+          })
           pageToken = page.nextPageToken || null
           await journal({ kind: 'page', collection, nextPageToken: pageToken })
           console.log(`Exportação: ${count} documentos preservados localmente.`)

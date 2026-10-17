@@ -9,7 +9,9 @@
   "vars": {
     "FIREBASE_PROJECT_ID": "d-tech-8555e",
     "WRITES_ENABLED": "false",
-    "MIGRATION_READY": "false"
+    "MIGRATION_READY": "false",
+    "PREVIEW_READS_ENABLED": "true",
+    "SNAPSHOT_EXPORTED_AT": "2026-10-17T16:13:00.355Z"
   },
   "hyperdrive": [
     { "binding": "HYPERDRIVE", "id": "aeba609cd9e94b4eb2ac5f0266b01ac4" }

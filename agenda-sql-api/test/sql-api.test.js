@@ -134,3 +134,14 @@ test('catalog excludes e-mail credits and never offers arbitrary collections', a
   assert.equal(catalog.updates[0].createdBy, undefined)
   assert.equal((await handler(request('/api/admins'), env)).status, 404)
 })
+
+test('read-only migration preview never opens private reads or writes', async () => {
+  const previewEnv = { PREVIEW_READS_ENABLED: 'true', WRITES_ENABLED: 'true', SNAPSHOT_EXPORTED_AT: '2026-10-17T12:00:00Z' }
+  const response = await handler(request('/api/catalog/agenda'), previewEnv)
+  assert.equal(response.status, 200)
+  const catalog = await response.json()
+  assert.deepEqual(catalog.meta, { generatedAt: previewEnv.SNAPSHOT_EXPORTED_AT, stale: true, preview: true, source: 'postgresql-snapshot', liveSync: false })
+  assert.equal((await handler(request('/api/activities', 'POST', input), previewEnv)).status, 503)
+  assert.equal((await handler(request('/api/me'), previewEnv)).status, 503)
+  assert.equal((await handler(request(`/api/activities/${activityId}`), previewEnv)).status, 503)
+})

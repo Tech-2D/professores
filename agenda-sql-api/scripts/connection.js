@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import pg from 'pg'
 
-export async function connect() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL_MISSING')
-  const url = new URL(process.env.DATABASE_URL)
+export async function connect(connectionString = process.env.DATABASE_URL) {
+  if (!connectionString) throw new Error('DATABASE_URL_MISSING')
+  const url = new URL(connectionString)
   if (!['postgresql:', 'postgres:'].includes(url.protocol)) throw new Error('INVALID_DATABASE_URL')
   // pg SSL URL options would override the explicit verified TLS settings. Remove them.
   for (const key of ['sslmode', 'sslcert', 'sslkey', 'sslrootcert', 'ssl']) url.searchParams.delete(key)
