@@ -43,8 +43,8 @@ try {
     if(!Object.hasOwn(expected,name)) continue
     await api(`/accounts/${ACCOUNT}/workers/scripts/${NAME}/secrets`,'PUT',{name,text:value,type:'secret_text'})
     if(name==='WEB_DATA_KEY') {
-      await command(process.execPath,[vercel,'env','add','SQL_WEB_DATA_KEY','production','--sensitive','--force','--yes','--scope',linked.orgId,'--project',linked.projectId],value+'\n',new URL('../../auth-email-api/',import.meta.url))
-    } else await command('gh',['secret','set','SQL_JOB_KEY','--repo',expected[name]],value+'\n')
+      await command(process.execPath,[vercel,'env','add','SQL_WEB_DATA_KEY','production','--sensitive','--force','--yes','--scope',linked.orgId,'--project',linked.projectId],value,new URL('../../auth-email-api/',import.meta.url))
+    } else await command('gh',['secret','set','SQL_JOB_KEY','--repo',expected[name]],value)
     console.log('Secret configurado: '+name+' (somente destinos autorizados).')
   }
   console.log('Nenhuma automação ou troca de banco foi ativada. Senha do Aiven não transmitida.')

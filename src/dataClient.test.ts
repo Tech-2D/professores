@@ -65,4 +65,3 @@ it('timestamp hydration and optimistic versions survive an edit without exposing
   await updateDoc(ref,{title:'Updated'})
   expect(JSON.parse(fetch.mock.calls[1][1].body).commit.writes[0].version).toBe('5')
 })
-

@@ -131,4 +131,3 @@ export const onSnapshot = choose(native.onSnapshot,(ref:Ref,next:(value:unknown)
   return ()=>{stopped=true;clearTimeout(timer);window.removeEventListener(CHANGED,wake);document.removeEventListener('visibilitychange',wake)}
 })
 export { Timestamp } from 'firebase/firestore'
-
