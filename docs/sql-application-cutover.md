@@ -18,7 +18,7 @@ Esta preparação **não confirma produção SQL**. Antes de anunciar a troca, c
 
 1. Publicar código adaptado dos três sites, API e dois crons, inicialmente sem ligar seus flags SQL. Conferir Actions/implantações. Preservar alterações locais de outras tarefas.
 2. Pausar os dois jobs (`DATA_BACKEND=maintenance`) e esperar execuções anteriores terminarem. Pausar os escritores Vercel/Render; verificar o `/api/health` de ambas as implantações, não apenas o código local. `DATA_BACKEND=maintenance` recusa acesso ao banco.
-3. Bloquear clientes Firestore com `node scripts/firestore-maintenance.js --freeze`. O comando guarda as regras anteriores em `.wrangler/firestore-before-cutover.json`; não exclui documentos e não desliga o Authentication. Admin SDK ignora regras: o passo anterior é obrigatório.
+3. Somente após autorização explícita da janela, preparar e publicar regras temporárias que mantenham as leituras existentes e recusem novas gravações, salvando a versão anterior. Não publicar regras `deny-all`. A operação ampla de congelamento foi removida de `firestore-maintenance.js`; esse utilitário permite apenas conferir regras e restaurar um backup existente. Admin SDK ignora regras: o passo anterior é obrigatório.
 4. Exportar novamente para OUTRO snapshot: `npm run export -- --execute --out snapshots/d-tech-8555e-final.jsonl`. Não reutilizar um export já concluído enquanto a origem ainda recebia alterações.
 5. Rodar `db:migrate`, depois `node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/reconcile-snapshot.js --snapshot snapshots/d-tech-8555e-final.jsonl --source-frozen`. Confirmação de congelamento é responsabilidade do operador. O script recusa sobrescrever SQL após produção/auditoria de aplicação, preserva versões anteriores e verifica dados/projeções/totais antes do commit.
 6. Conferir autenticação, projeções, leitura privada, anexos e jobs em simulação. Nenhum registro de teste no banco real antes da reconciliação final. `verify-application.js` não imprime dados pessoais.
@@ -34,3 +34,9 @@ Antes da primeira gravação SQL, é possível restaurar as regras salvas e reab
 `firestore_documents` preserva a fonte tipada atual; `source_revisions` guarda versões anteriores à reconciliação, inclusive exclusões na origem. Ambas são inacessíveis ao usuário SQL da API. `app_audit` é somente inserção para esse usuário. Backups/snapshots/chaves são ignorados pelo Git e não podem virar artifacts de CI.
 
 Nunca restaurar senha global, apagar usuários, remover coleções da origem ou reativar WhatsApp como parte desta migração.
+
+## Bloqueio encontrado na tentativa de virada
+
+A revisão de segurança recusou a publicação de regras `deny-all`: o pedido de migração não autorizava claramente o bloqueio amplo do acesso de produção. O comando foi recusado antes de executar: nenhuma regra mudou, nenhum export final foi iniciado e nenhum dado de origem foi apagado. A operação foi removida do utilitário, sem tentar executá-la por outro caminho.
+
+A pausa temporária dos backends/crons foi revertida para `firestore`; a virada passa a depender de autorização explícita para uma janela de somente leitura que preserve login e consultas. `production_enabled=false`, `APPLICATION_WRITES_ENABLED=false`, `MIGRATION_READY=false` e builds sem `VITE_DATA_BACKEND=sql` continuam impedindo a troca parcial. A aprovação solicitada ao proprietário não é presumida.

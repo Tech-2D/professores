@@ -90,6 +90,32 @@ export async function putDocument(db,path,data) {
     ON CONFLICT(path) DO UPDATE SET data=excluded.data,version=tech2d.app_documents.version+1,updated_at=now()`,[path,p.slice(0,-1).join('/'),p.at(-1),JSON.stringify(data)])
   await materialize(db,path,data)
 }
+async function applyPlans(db,plans) {
+  const removed=plans.filter(p=>p.data===null),written=plans.filter(p=>p.data!==null)
+  if(removed.length) await db.query('DELETE FROM tech2d.app_documents WHERE path=ANY($1::text[])',[removed.map(p=>p.path)])
+  if(written.length) await db.query(`INSERT INTO tech2d.app_documents(path,collection,id,data)
+    SELECT path,collection,id,data FROM jsonb_to_recordset($1::jsonb) AS row(path text,collection text,id text,data jsonb)
+    ON CONFLICT(path) DO UPDATE SET data=excluded.data,version=tech2d.app_documents.version+1,updated_at=now()`,
+  [JSON.stringify(written.map(p=>{const parts=p.path.split('/');return {path:p.path,collection:parts.slice(0,-1).join('/'),id:parts.at(-1),data:p.data}}))])
+  const root=plans.filter(p=>p.path.split('/').length===2).map(p=>({...p,collection:p.path.split('/')[0],id:p.path.split('/')[1]}))
+  const activities=root.filter(p=>p.collection==='activities')
+  if(activities.some(p=>!p.data))await db.query('DELETE FROM tech2d.activities WHERE id=ANY($1::text[])',[activities.filter(p=>!p.data).map(p=>p.id)])
+  if(activities.some(p=>p.data))await db.query(`INSERT INTO tech2d.activities(id,turma_id,title,description,type,subject,date,time,created_by,created_by_email,recurring_id,attachments,created_at,updated_at)
+    SELECT id,data->>'turmaId',data->>'title',coalesce(data->>'description',''),data->>'type',data->>'subject',data->>'date',data->>'time',data->>'createdBy',data->>'createdByEmail',data->>'recurringId',coalesce(data->'attachments','[]'::jsonb),(data->>'createdAt')::timestamptz,(data->>'updatedAt')::timestamptz
+    FROM jsonb_to_recordset($1::jsonb) AS row(id text,data jsonb)
+    ON CONFLICT(id) DO UPDATE SET turma_id=excluded.turma_id,title=excluded.title,description=excluded.description,type=excluded.type,subject=excluded.subject,date=excluded.date,time=excluded.time,created_by=excluded.created_by,created_by_email=excluded.created_by_email,recurring_id=excluded.recurring_id,attachments=excluded.attachments,created_at=excluded.created_at,updated_at=excluded.updated_at,version=tech2d.activities.version+1`,[JSON.stringify(activities.filter(p=>p.data).map(p=>({id:p.id,data:p.data})))])
+  const admins=root.filter(p=>p.collection==='admins')
+  if(admins.some(p=>!p.data))await db.query('DELETE FROM tech2d.admin_profiles WHERE uid=ANY($1::text[])',[admins.filter(p=>!p.data).map(p=>p.id)])
+  if(admins.some(p=>p.data))await db.query(`INSERT INTO tech2d.admin_profiles(uid,role,turma_id,data)
+    SELECT id,data->>'role',data->>'turmaId',data FROM jsonb_to_recordset($1::jsonb) AS row(id text,data jsonb)
+    ON CONFLICT(uid) DO UPDATE SET role=excluded.role,turma_id=excluded.turma_id,data=excluded.data`,[JSON.stringify(admins.filter(p=>p.data).map(p=>({id:p.id,data:p.data})))])
+  const catalog=root.filter(p=>CATALOG_COLLECTIONS.has(p.collection))
+  if(catalog.some(p=>!p.data))await db.query(`DELETE FROM tech2d.catalog_documents d USING jsonb_to_recordset($1::jsonb) AS r(collection text,id text)
+    WHERE d.collection=r.collection AND d.id=r.id`,[JSON.stringify(catalog.filter(p=>!p.data).map(p=>({collection:p.collection,id:p.id})))])
+  if(catalog.some(p=>p.data))await db.query(`INSERT INTO tech2d.catalog_documents(collection,id,data)
+    SELECT collection,id,data FROM jsonb_to_recordset($1::jsonb) AS row(collection text,id text,data jsonb)
+    ON CONFLICT(collection,id) DO UPDATE SET data=excluded.data`,[JSON.stringify(catalog.filter(p=>p.data).map(p=>({collection:p.collection,id:p.id,data:p.data})))])
+}
 export async function commitDocuments(db,identity,input) {
   if (!input || Object.keys(input).some(k => !['id','writes','reads'].includes(k)) || !/^[a-zA-Z0-9_-]{20,80}$/.test(input.id) || !Array.isArray(input.writes) || input.writes.length < 1 || input.writes.length > 500 || !Array.isArray(input.reads || []) || (input.reads || []).length > 500) throw invalid()
   const paths = new Set()
@@ -117,8 +143,11 @@ export async function commitDocuments(db,identity,input) {
       if ((row?.version ?? null) !== read.version) throw conflict()
     }
     const plans = []
+    // One round trip for a whole import, rather than 500 sequential lookups.
+    const existing=(await db.query('SELECT path,data,version FROM tech2d.app_documents WHERE path=ANY($1::text[]) FOR UPDATE',[[...paths]])).rows
+    const byPath=new Map(existing.map(row=>[row.path,row]))
     for (const w of input.writes) {
-      const old = (await db.query('SELECT data,version FROM tech2d.app_documents WHERE path=$1 FOR UPDATE',[w.path])).rows[0]
+      const old = byPath.get(w.path)
       if (w.version !== undefined && (old ? String(old.version) : null) !== w.version) throw conflict()
       if (w.op === 'create' && old) throw Object.assign(conflict(),{ code:'already-exists' })
       if (w.op === 'update' && !old) throw Object.assign(new Error('Registro não encontrado.'),{status:404,code:'not-found'})
@@ -128,10 +157,10 @@ export async function commitDocuments(db,identity,input) {
       plans.push({path:w.path,data,old:old?.data || null,operation:w.op})
     }
     // Evaluate every permission against the same pre-commit state, then apply atomically.
-    for (const plan of plans) {
-      await putDocument(db,plan.path,plan.data)
-      await db.query('INSERT INTO tech2d.app_audit(actor,path,operation,previous_data) VALUES($1,$2,$3,$4::jsonb)',[actor,plan.path,plan.operation,JSON.stringify(plan.old)])
-    }
+    await applyPlans(db,plans)
+    await db.query(`INSERT INTO tech2d.app_audit(actor,path,operation,previous_data)
+      SELECT $1,path,operation,previous_data FROM jsonb_to_recordset($2::jsonb) AS row(path text,operation text,previous_data jsonb)`,
+    [actor,JSON.stringify(plans.map(p=>({path:p.path,operation:p.operation,previous_data:p.old})))])
     await db.query('INSERT INTO tech2d.app_commits(id,actor,digest) VALUES($1,$2,$3)',[input.id,actor,hash])
     await db.query('COMMIT')
     return {committed:true,replay:false}
