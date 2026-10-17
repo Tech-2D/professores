@@ -19,7 +19,7 @@ try {
     console.log('Modo de preparação. Para ler o Firestore use npm run export -- --execute. Não altera a origem.')
   } else {
     const concurrency = Number(values.concurrency)
-    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new Error('INVALID_CONCURRENCY')
+    if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 16) throw new Error('INVALID_CONCURRENCY')
     const key = JSON.parse(await readFile(values.key, 'utf8'))
     if (key.project_id !== PROJECT) throw new Error('WRONG_FIREBASE_PROJECT')
     const credential = cert(key)
@@ -91,7 +91,7 @@ try {
               if (!row.missing) count++
             }
             for (const child of row.collections) queue.add(child)
-          })
+          },16)
           pageToken = page.nextPageToken || null
           await journal({ kind: 'page', collection, nextPageToken: pageToken })
           console.log(`Exportação: ${count} documentos preservados localmente.`)

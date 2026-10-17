@@ -1,5 +1,5 @@
-export async function mapLimited(items, concurrency, action) {
-  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new Error('INVALID_CONCURRENCY')
+export async function mapLimited(items, concurrency, action, ceiling = 4) {
+  if (!Number.isInteger(ceiling) || ceiling<1 || ceiling>16 || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > ceiling) throw new Error('INVALID_CONCURRENCY')
   const results = new Array(items.length)
   let next = 0, failed = false, failure
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {

@@ -62,6 +62,8 @@ test('discovery concurrency is bounded, preserves results and awaits all work', 
   assert.equal(maximum, 3)
   assert.equal(active, 0)
   await assert.rejects(() => mapLimited([], 5, async () => {}), /INVALID_CONCURRENCY/)
+  assert.deepEqual(await mapLimited([1,2,3],16,async value=>value,16),[1,2,3])
+  await assert.rejects(()=>mapLimited([],17,async()=>{},16),/INVALID_CONCURRENCY/)
 })
 
 test('discovery failure settles in-flight work before propagating error', async () => {
