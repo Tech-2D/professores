@@ -1,0 +1,68 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest'
+it('public SQL transport never falls back to the old Redis/Firestore backend',async()=>{
+  const fetch=vi.fn().mockResolvedValue(new Response('{}',{status:503}))
+  vi.stubGlobal('fetch',fetch)
+  const {fetchCatalog}=await import('./catalogTransport')
+  const result=await fetchCatalog('agenda','2° TECH D',new AbortController().signal)
+  expect(result.status).toBe(503)
+  expect(fetch).toHaveBeenCalledTimes(1)
+  expect(fetch.mock.calls[0][0].origin).toBe('https://tech-2d-agenda-sql.tech-2d-auth-email.workers.dev')
+})
+
+const mocks=vi.hoisted(()=>({account:{uid:'owner',getIdToken:async()=> 'id-token'} as {uid:string;getIdToken:()=>Promise<string>} | null}))
+vi.mock('./firebase',()=>({auth:{get currentUser(){return mocks.account}}}))
+beforeEach(()=>{
+  vi.resetModules();vi.stubEnv('VITE_DATA_BACKEND','sql')
+  mocks.account={uid:'owner',getIdToken:async()=> 'id-token'}
+  vi.stubGlobal('window',new EventTarget())
+  vi.stubGlobal('document',Object.assign(new EventTarget(),{hidden:false}))
+})
+afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();vi.useRealTimers()})
+it('SQL creates a stable 20-character capability ID and sends a Firebase token, not a database key',async()=>{
+  const fetch=vi.fn().mockResolvedValue(Response.json({committed:true}))
+  vi.stubGlobal('fetch',fetch)
+  const {addDoc,collection,serverTimestamp}=await import('./dataClient')
+  const ref=await addDoc(collection({} as never,'suggestions'),{title:'Test',createdAt:serverTimestamp()})
+  expect(ref.id).toMatch(/^[A-Za-z0-9]{20}$/)
+  expect(fetch.mock.calls[0][0]).toBe('https://tech-2d-agenda-sql.tech-2d-auth-email.workers.dev/api/data')
+  expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer id-token')
+  expect(JSON.parse(fetch.mock.calls[0][1].body).commit.writes[0].data.createdAt).toEqual({__tech2dType:'serverTimestamp'})
+})
+it('a SQL outage does not switch to Firestore or replay a refused write',async()=>{
+  const fetch=vi.fn().mockResolvedValue(Response.json({code:'unavailable',message:'Offline'},{status:503}))
+  vi.stubGlobal('fetch',fetch)
+  const {updateDoc,doc}=await import('./dataClient')
+  await expect(updateDoc(doc({} as never,'activities','id'),{title:'Test'})).rejects.toMatchObject({code:'unavailable'})
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+it('transport retry reuses the same commit ID to prevent duplicate activities',async()=>{
+  const fetch=vi.fn().mockRejectedValueOnce(TypeError('network')).mockResolvedValue(Response.json({committed:true,replay:true}))
+  vi.stubGlobal('fetch',fetch)
+  const {addDoc,collection}=await import('./dataClient')
+  await addDoc(collection({} as never,'activities'),{title:'Test'})
+  expect(fetch).toHaveBeenCalledTimes(2)
+  expect(fetch.mock.calls[0][1].body).toBe(fetch.mock.calls[1][1].body)
+})
+it('a response belonging to the previous account is discarded',async()=>{
+  let complete!:(value:Response)=>void
+  const result=new Promise<Response>(resolve=>{complete=resolve})
+  vi.stubGlobal('fetch',vi.fn().mockReturnValue(result))
+  const {getDoc,doc}=await import('./dataClient')
+  const pending=getDoc(doc({} as never,'admins','owner'))
+  await Promise.resolve();await Promise.resolve()
+  mocks.account={uid:'student',getIdToken:async()=> 'other-token'}
+  complete(Response.json({document:{path:'admins/owner',id:'owner',data:{role:'superadmin'},version:'1'}}))
+  await expect(pending).rejects.toMatchObject({code:'cancelled'})
+})
+it('timestamp hydration and optimistic versions survive an edit without exposing internal keys',async()=>{
+  const fetch=vi.fn().mockResolvedValueOnce(Response.json({document:{path:'activities/id',id:'id',data:{date:'2026-10-20',createdAt:'2026-10-17T10:00:00Z'},version:'5'}})).mockResolvedValue(Response.json({committed:true}))
+  vi.stubGlobal('fetch',fetch)
+  const {getDoc,doc,updateDoc}=await import('./dataClient')
+  const ref=doc({} as never,'activities','id')
+  const row=await getDoc(ref)
+  expect(row.data()?.date).toBe('2026-10-20')
+  expect(row.data()?.createdAt.toDate().toISOString()).toBe('2026-10-17T10:00:00.000Z')
+  await updateDoc(ref,{title:'Updated'})
+  expect(JSON.parse(fetch.mock.calls[1][1].body).commit.writes[0].version).toBe('5')
+})
+

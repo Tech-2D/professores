@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { connect, reportFailure } from './connection.js'
 let db
 try {
@@ -14,13 +14,14 @@ try {
     const counts = await db.query('SELECT (SELECT count(*) FROM tech2d.activities)::int AS activities, (SELECT count(*) FROM tech2d.firestore_documents)::int AS archived_documents')
     console.log(JSON.stringify(counts.rows[0]))
   } else {
-    const sql = await readFile(new URL('../migrations/001_initial.sql', import.meta.url), 'utf8')
+    const folder = new URL('../migrations/',import.meta.url)
+    const migrations = (await readdir(folder)).filter(name => /^\d{3}_[a-z_]+\.sql$/.test(name)).sort()
     await db.query('BEGIN')
     try {
       await db.query("SELECT pg_advisory_xact_lock(hashtext('tech2d-schema-migrations'))")
       const existing = await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema='tech2d'")
       if (existing.rows.length && !existing.rows.some(row => row.table_name === 'schema_migrations')) throw new Error('EXISTING_SCHEMA_REVIEW_REQUIRED')
-      await db.query(sql)
+      for (const name of migrations) await db.query(await readFile(new URL(name,folder),'utf8'))
       await db.query('COMMIT')
     }
     catch (error) { await db.query('ROLLBACK'); throw error }

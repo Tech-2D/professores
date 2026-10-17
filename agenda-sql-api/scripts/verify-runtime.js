@@ -17,8 +17,9 @@ try {
     db = await connect(runtime)
     const privileges = (await db.query(`SELECT
       has_table_privilege(current_user,'tech2d.firestore_documents','SELECT') AS archive,
-      has_table_privilege(current_user,'tech2d.admin_profiles','UPDATE') AS roles,
-      has_table_privilege(current_user,'tech2d.activities','DELETE') AS deletions,
+      has_table_privilege(current_user,'tech2d.app_audit','UPDATE') AS audit,
+      has_table_privilege(current_user,'tech2d.migration_state','UPDATE') AS migration,
+      has_table_privilege(current_user,'tech2d.source_revisions','SELECT') AS revisions,
       has_schema_privilege(current_user,'tech2d','CREATE') AS ddl`)).rows[0]
     if (Object.values(privileges).some(Boolean)) throw new Error('RUNTIME_PRIVILEGES_TOO_BROAD')
   }

@@ -1,4 +1,5 @@
-const PRIMARY = import.meta.env.VITE_PUBLIC_QUERY_API_URL?.trim() || 'https://tech-2d-consultas.tech-2d-auth-email.workers.dev/api/catalog'
+import { SQL_ENABLED, SQL_BASE } from './dataBackend'
+const PRIMARY = SQL_ENABLED ? SQL_BASE + '/api/catalog' : import.meta.env.VITE_PUBLIC_QUERY_API_URL?.trim() || 'https://tech-2d-consultas.tech-2d-auth-email.workers.dev/api/catalog'
 const FALLBACK = 'https://tech-2d-agenda-storage.onrender.com/api/catalog'
 const COOLDOWN = 5 * 60 * 1000
 let primaryUnavailableUntil = 0
@@ -14,6 +15,8 @@ export async function fetchCatalog(resource: string, className: string | undefin
     if (className) url.searchParams.set('class', className)
     return fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]) })
   }
+  // Never fall back to a pre-migration Redis/Firestore snapshot after SQL cutover.
+  if (SQL_ENABLED) return read(PRIMARY, 15000)
   if (Date.now() >= primaryUnavailableUntil) {
     try {
       const result = await read(PRIMARY, 8000)

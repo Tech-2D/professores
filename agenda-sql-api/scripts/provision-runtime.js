@@ -49,7 +49,9 @@ try {
       has_table_privilege($1,'tech2d.activities','DELETE') AS activity_delete,
       has_table_privilege($1,'tech2d.activity_audit','UPDATE') AS audit_update,
       has_schema_privilege($1,'tech2d','CREATE') AS schema_create`, [role])).rows[0]
-    if (Object.values(forbidden).some(Boolean)) throw new Error('RUNTIME_PRIVILEGES_TOO_BROAD')
+    const applicationGrants=(await owner.query("SELECT has_table_privilege($1,'tech2d.app_documents','INSERT') AS enabled",[role])).rows[0]?.enabled
+    const forbiddenKeys=applicationGrants ? ['archive_read','audit_update','schema_create'] : Object.keys(forbidden)
+    if (forbiddenKeys.some(key=>forbidden[key])) throw new Error('RUNTIME_PRIVILEGES_TOO_BROAD')
     await owner.query('COMMIT')
   } catch (error) { await owner.query('ROLLBACK'); throw error }
   const ca = await readFile(process.env.PG_CA_FILE || '../firebase-credentials/aiven-ca.pem', 'utf8')
@@ -57,6 +59,6 @@ try {
   await runtime.connect()
   await runtime.query('SELECT id FROM tech2d.activities LIMIT 0')
   console.log('Usuário SQL limitado criado/conferido; conexão TLS validada. Segredo salvo apenas em firebase-credentials/aiven-runtime.env (ignorado pelo Git).')
-  console.log('Sem leitura do arquivo bruto, alteração de papéis, exclusão de atividades ou criação de tabelas. Nenhuma credencial enviada ao Cloudflare nesta etapa.')
+  console.log('Sem leitura do arquivo bruto ou criação de tabelas. Operações da aplicação exigem políticas da API. Nenhuma credencial enviada ao Cloudflare nesta etapa.')
 } catch (error) { reportFailure(error) }
 finally { if (runtime) await runtime.end(); if (owner) await owner.end() }

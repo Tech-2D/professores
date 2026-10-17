@@ -1,6 +1,8 @@
 import { connectDatabase } from './database.js'
 import { verifySession } from './auth.js'
 import { canManage, publicActivity, publicSchedule, publicUpdate, validActivity } from './data.js'
+import { handleData } from './data-route.js'
+import { handleJob } from './jobs.js'
 
 const ORIGIN = 'https://tech-2d.github.io'
 const failure = (status, message) => Object.assign(new Error(message), { status })
@@ -36,7 +38,16 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
       return new Response(null, { status: 204, headers })
     }
     const url = new URL(request.url)
-    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true', previewReadsEnabled: env.PREVIEW_READS_ENABLED === 'true', databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString) })
+    const job = url.pathname.match(/^\/api\/internal\/jobs\/(recurrences|purge)$/)
+    if (job) {
+      try {return await handleJob(request,env,{connect,reply},job[1])}
+      catch(error) {return reply({message:error.status ? error.message : 'Automação temporariamente indisponível.'},error.status || 503)}
+    }
+    if (['/api/data','/api/internal/web-data'].includes(url.pathname)) {
+      try { return await handleData(request,env,{connect,verify,reply}) }
+      catch (error) { return reply({message:error.status ? error.message : 'Serviço temporariamente indisponível.',code:error.code || 'unavailable'},error.status || 503) }
+    }
+    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true', previewReadsEnabled: env.PREVIEW_READS_ENABLED === 'true', applicationDataEnabled:env.APPLICATION_DATA_ENABLED==='true', applicationWritesEnabled:env.APPLICATION_WRITES_ENABLED==='true', applicationJobsEnabled:env.APPLICATION_JOBS_ENABLED==='true', databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString) })
     const activity = url.pathname.match(/^\/api\/activities\/([A-Za-z0-9_-]{1,128})$/)
     if (!activity && !supported.has(url.pathname)) return reply({ message: 'Rota não encontrada.' }, 404)
     const allowed = activity ? ['GET', 'PATCH'] : url.pathname === '/api/activities' ? ['POST'] : ['GET']
@@ -47,6 +58,8 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
     const meta = () => ({ generatedAt: previewOnly ? env.SNAPSHOT_EXPORTED_AT : new Date().toISOString(),
       stale: previewOnly, ...(previewOnly ? { preview: true, source: 'postgresql-snapshot', liveSync: false } : {}) })
     const write = request.method !== 'GET'
+    // Once the document application is enabled, there must be exactly one write path.
+    if (write && env.APPLICATION_DATA_ENABLED === 'true') return reply({message:'Use a versão atual do aplicativo.'},409)
     if (write && origin !== ORIGIN) return reply({ message: 'Origem obrigatória.' }, 403)
     if (write && env.WRITES_ENABLED !== 'true') return reply({ message: 'Gravação SQL ainda não ativada.' }, 503)
     let db

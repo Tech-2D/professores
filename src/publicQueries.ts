@@ -1,4 +1,5 @@
 import { auth } from './firebase'
+import { SQL_ENABLED } from './dataBackend'
 import { catalogWriteEndpoint, fetchCatalog } from './catalogTransport'
 
 export type CatalogMeta = { generatedAt: string; stale: boolean }
@@ -66,6 +67,7 @@ export function observeCatalog<T>(resource: 'schedules' | 'agenda' | 'updates', 
 }
 
 export async function invalidateCatalog(target: 'schedules' | 'agenda'): Promise<boolean> {
+  if (SQL_ENABLED) { window.dispatchEvent(new Event(CHANGED)); return true }
   try {
     const token = await auth.currentUser?.getIdToken()
     if (!token) return false

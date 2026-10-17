@@ -34,7 +34,7 @@ import {
   serverTimestamp,
   updateDoc,
   writeBatch,
-} from 'firebase/firestore'
+} from './dataClient'
 import { auth, db } from './firebase'
 import { CLASS_NAMES } from './classNames'
 import { readPreferredClass, savePreferredClass } from './classPreference'

@@ -8,6 +8,10 @@
   "preview_urls": false,
   "vars": {
     "FIREBASE_PROJECT_ID": "d-tech-8555e",
+    "FIREBASE_WEB_API_KEY": "AIzaSyCscvBCfXJJhOd1B0ySY1g2hbwjNkWUdvo",
+    "APPLICATION_DATA_ENABLED": "true",
+    "APPLICATION_WRITES_ENABLED": "false",
+    "APPLICATION_JOBS_ENABLED": "true",
     "WRITES_ENABLED": "false",
     "MIGRATION_READY": "false",
     "PREVIEW_READS_ENABLED": "true",
@@ -16,6 +20,7 @@
   "hyperdrive": [
     { "binding": "HYPERDRIVE", "id": "aeba609cd9e94b4eb2ac5f0266b01ac4" }
   ],
+  "r2_buckets": [{ "binding": "AGENDA_FILES", "bucket_name": "tech-2d-agenda" }],
   // Origin uses the dedicated SQL user, verify-full TLS and query caching disabled.
   "observability": { "enabled": false }
 }

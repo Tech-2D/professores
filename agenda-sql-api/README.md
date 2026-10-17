@@ -116,7 +116,11 @@ O usuário autorizou a criação do login SQL limitado `tech2d_api` e seu envio 
 - Após sucesso, o ID público do Hyperdrive pode ser adicionado ao binding `HYPERDRIVE` em `wrangler.jsonc`. O arquivo `.wrangler/sql-connection.json` registra IDs e opções não secretas, sem URI ou senha.
 - É seguro publicar inicialmente com os flags `MIGRATION_READY=false` e `WRITES_ENABLED=false`: catálogos/escritas retornam 503 de preparação. Não ligar esses flags antes da verificação e corte.
 
-## Ainda falta para a migração completa
+## Aplicação SQL e virada
+
+A adaptação dos formulários, anexos, perfis, conversas, sugestões, enquetes e automações foi implementada em 17/10. Os flags de gravação continuam fechados até a reconciliação final. Consulte [o procedimento e o estado da virada](../docs/sql-application-cutover.md). Os registros abaixo são históricos das etapas anteriores, não o estado atual da implementação.
+
+### Pendências identificadas na preparação original
 
 - Confirmar conexão e preparar/importar/verificar o banco real.
 - Implementar rotas autenticadas de sugestões e conversas, enquetes/aprovação/votos, avisos, solicitações de representante/turma, perfis e atualizações.

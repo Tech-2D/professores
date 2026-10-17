@@ -4,8 +4,8 @@ const PRIMARY = 'https://tech-2d-consultas.tech-2d-auth-email.workers.dev'
 const FALLBACK = 'https://tech-2d-agenda-storage.onrender.com'
 const ok = () => new Response('{}', { status: 200 })
 
-beforeEach(() => { vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-30T12:00:00Z')) })
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+beforeEach(() => { vi.stubEnv('VITE_DATA_BACKEND','firestore'); vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-30T12:00:00Z')) })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 it('uses Cloudflare first and preserves class filters', async () => {
   const fetch = vi.fn().mockResolvedValue(ok())
