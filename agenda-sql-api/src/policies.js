@@ -56,6 +56,7 @@ export async function authorizeRead(c, path, data) {
   if (c.service) return serviceRead(c, name)
   if (p.length === 4) return name === 'feedback' ? Boolean(await converse(c, id)) : owns(c, p[3])
   if (['agendaClasses','schedules','notebookNotes','announcement'].includes(name)) return true
+  if (name === 'userProfiles') return owns(c,id)
   if (name === 'suggestions') return /^[a-zA-Z0-9]{20}$/.test(id) // Existing per-ID tracking capability, not listing.
   if (name === 'admins') return owns(c, id)
   if (name === 'representativeInvites') return isSuper(c) || Boolean(c.user?.email && id === c.user.email.toLowerCase())

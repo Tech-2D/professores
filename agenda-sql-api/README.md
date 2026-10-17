@@ -1,6 +1,8 @@
-# Agenda SQL — migração gradual
+# Agenda SQL — PostgreSQL em produção
 
-Base inicial de uma API Cloudflare Workers + PostgreSQL Aiven. **Não substitui ainda o backend em produção.**
+API Cloudflare Workers + PostgreSQL Aiven ativada em 17/10/2026 após janela de somente leitura autorizada e reconciliação final. Agenda, Cadê o professor, Caderno Infinito, anexos e automações usam SQL. Firebase Authentication permanece responsável pelas contas. [Relatório da virada](../docs/sql-application-cutover.md).
+
+Os registros datados abaixo preservam a evolução da migração. Flags fechados e pendências descritos nas etapas iniciais não representam o estado atual.
 
 ## Decisões desta etapa
 
@@ -8,9 +10,9 @@ Base inicial de uma API Cloudflare Workers + PostgreSQL Aiven. **Não substitui 
 - Papéis e turma vêm de `tech2d.admin_profiles` no PostgreSQL. Ninguém escolhe um papel no corpo da requisição.
 - `tech2d.activities` tem colunas SQL e índices por turma/data. Conteúdo original de todas as coleções/subcoleções fica em arquivo local e em arquivo de preservação JSONB privado, `tech2d.firestore_documents`.
 - IDs antigos são preservados, inclusive referências aos anexos. Objetos do R2 e fotos do Cloudinary não são movidos.
-- Demais coleções recebem cópia bruta, **não implementação automática de suas regras**. Não existe rota para consultar coleções ou executar SQL arbitrários.
-- Escritas estão desativadas, assim como o estado de migração concluída. Não há fallback de escrita para Firebase: isso causaria divergência entre bancos.
-- Redis não participa desta primeira API. PATCH usa transação, bloqueio de linha, versão otimista e auditoria. Configurar Hyperdrive **com query caching desativado** antes de ativar as escritas.
+- Coleções de aplicação têm políticas explícitas em `src/policies.js`. Arquivo bruto e sessões WhatsApp nunca são expostos. Não existe rota para executar SQL arbitrário.
+- Gravações da aplicação estão ativadas; o antigo REST experimental de atividades permanece bloqueado para evitar um segundo caminho de escrita. Não há fallback de escrita para Firebase.
+- Redis antigo não participa das consultas de produção. Commits usam transação, versões, idempotência e auditoria. Hyperdrive mantém cache de consultas desativado.
 
 ## Preparar a conexão
 
@@ -78,7 +80,18 @@ npm run migration:report -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl
 
 `migration:report` confere hashes, projeções e totais do SQL e gera um recibo sem IDs pessoais em `.wrangler/migration-verification-2026-10-17.json`. O recibo registra expressamente que a origem não foi congelada e o corte de produção não aconteceu. Não ativa flags nem altera o frontend.
 
-## API implementada nesta etapa
+## API em produção
+
+| Rota | Acesso | Estado |
+| --- | --- | --- |
+| `POST /api/data` | Público ou autenticado conforme coleção/operação | Consultas e commits dos três sites; políticas por conta/turma |
+| `POST /api/internal/web-data` | Chave exclusiva da API web | Anexos, perfis, preferências e resumo semanal |
+| `POST /api/internal/jobs/recurrences` | Chave exclusiva do cron de recorrências | Criação de ocorrências; aceita simulação |
+| `POST /api/internal/jobs/purge` | Chave exclusiva do cron de expurgo | Arquivamento e limpeza; aceita simulação |
+
+Os catálogos públicos e `/api/me` descritos abaixo continuam ativos. As rotas antigas de criação/edição de atividades não recebem gravações em produção: existe somente o caminho transacional `/api/data`.
+
+### Rotas da preparação original (referência histórica)
 
 | Rota | Acesso | Estado |
 | --- | --- | --- |
@@ -93,7 +106,7 @@ npm run migration:report -- --snapshot snapshots/d-tech-8555e-2026-10-17.jsonl
 
 Representantes não gerenciam outras turmas ou eventos gerais nesta API; superadmin gerencia ambos. Autoria não é devolvida publicamente. Atualização não permite trocar autor ou anexos pelo corpo. Criação gera ID no servidor e autoria pela sessão. Não há exclusão até integrar limpeza segura do R2.
 
-## Antes de publicar no Cloudflare
+## Preparação original da publicação (referência histórica)
 
 1. Conectar a CLI à conta Tech-2D correta (`67606a241ef48fd5694950bd65a3d33e`), nunca outra conta encontrada na máquina.
 2. Criar usuário SQL dedicado para runtime. Não usar `avnadmin`/proprietário na API.
@@ -118,7 +131,7 @@ O usuário autorizou a criação do login SQL limitado `tech2d_api` e seu envio 
 
 ## Aplicação SQL e virada
 
-A adaptação dos formulários, anexos, perfis, conversas, sugestões, enquetes e automações foi implementada em 17/10. Os flags de gravação continuam fechados até a reconciliação final. Consulte [o procedimento e o estado da virada](../docs/sql-application-cutover.md). Os registros abaixo são históricos das etapas anteriores, não o estado atual da implementação.
+A adaptação dos formulários, anexos, perfis, conversas, sugestões, enquetes e automações foi implementada e ativada em 17/10, após a reconciliação final. Consulte [o procedimento e o estado da virada](../docs/sql-application-cutover.md). Os registros abaixo são históricos das etapas anteriores, não o estado atual da implementação.
 
 ### Pendências identificadas na preparação original
 
@@ -136,7 +149,7 @@ A adaptação dos formulários, anexos, perfis, conversas, sugestões, enquetes 
 - [Cloudflare: cache de consultas](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/)
 - [Aiven: conexão Node.js e certificado CA](https://aiven.io/docs/products/postgresql/howto/connect-node)
 
-O projeto é um ponto de partida testado, não uma declaração de que a migração em produção já aconteceu.
+As conferências históricas abaixo registram o que estava disponível em cada etapa; o resultado de produção está no início deste documento.
 
 ### Conferência em 16/10/2026
 

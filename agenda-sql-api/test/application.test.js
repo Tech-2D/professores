@@ -113,3 +113,10 @@ test('legacy activities without subject or author email remain editable without 
   assert.equal(await authorizeWrite(c,'activities/llllllllllllllllllll',old,{...old,title:'Updated',subject:null,updatedAt:c.now}),true)
   assert.equal(await authorizeWrite(c,'activities/llllllllllllllllllll',old,{...old,title:'Updated',createdByEmail:'forged@example.com'}),false)
 })
+test('own profile subscription may read its record; public listing remains in the safe profile API',async()=>{
+  await putDocument(db,'userProfiles/representative',{displayName:'Representative',company:'Example'})
+  const c=await context(db,rep)
+  assert.equal((await readDocument(db,c,'userProfiles/representative')).data.displayName,'Representative')
+  await assert.rejects(()=>readDocument(db,awaitContext(other),'userProfiles/representative'),{status:403})
+  await assert.rejects(()=>queryDocuments(db,c,{path:'userProfiles'}),{status:403})
+})

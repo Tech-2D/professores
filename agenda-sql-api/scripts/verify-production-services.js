@@ -1,6 +1,7 @@
 import {readFile} from 'node:fs/promises'
 import {parseEnv} from 'node:util'
 import {reportFailure} from './connection.js'
+import {hashFields} from '../src/importer.js'
 const SQL='https://tech-2d-agenda-sql.tech-2d-auth-email.workers.dev',WEB='https://tech-2d-auth-email.vercel.app',ORIGIN='https://tech-2d.github.io'
 try {
   const keys=parseEnv(await readFile('../firebase-credentials/sql-services.env','utf8'))
@@ -19,11 +20,11 @@ try {
       if(data.meta?.stale!==false)throw Error('LEGACY_SNAPSHOT_STILL_ACTIVE')
       const rows=data[resource==='agenda'?'activities':resource==='updates'?'updates':'schedules']
       if(!Array.isArray(rows))throw Error('CATALOG_FORMAT_CHANGED')
-      values.push(JSON.stringify(rows.map(({version,...row})=>row).sort((a,b)=>a.id.localeCompare(b.id))))
+      values.push(hashFields(rows.map(({version,...row})=>row).sort((a,b)=>a.id.localeCompare(b.id))))
     }
     if(values.some(value=>value!==values[0]))throw Error('CATALOG_PROXIES_DISAGREE')
   }
-  const local=parseEnv(await readFile('../../auth-email-api/.env.local','utf8'))
+  const local=parseEnv(await readFile('../auth-email-api/.env.local','utf8'))
   if(local.CRON_SECRET) {
     const response=await fetch(WEB+'/api/weekly-digest?dryRun=true',{headers:{Authorization:'Bearer '+local.CRON_SECRET},redirect:'error',signal:AbortSignal.timeout(300000)})
     if(!response.ok)throw Error('WEEKLY_DIGEST_DRY_RUN_FAILED')
