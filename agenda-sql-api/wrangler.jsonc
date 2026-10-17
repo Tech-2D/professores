@@ -10,11 +10,11 @@
     "FIREBASE_PROJECT_ID": "d-tech-8555e",
     "FIREBASE_WEB_API_KEY": "AIzaSyCscvBCfXJJhOd1B0ySY1g2hbwjNkWUdvo",
     "APPLICATION_DATA_ENABLED": "true",
-    "APPLICATION_WRITES_ENABLED": "false",
+    "APPLICATION_WRITES_ENABLED": "true",
     "APPLICATION_JOBS_ENABLED": "true",
     "WRITES_ENABLED": "false",
-    "MIGRATION_READY": "false",
-    "PREVIEW_READS_ENABLED": "true",
+    "MIGRATION_READY": "true",
+    "PREVIEW_READS_ENABLED": "false",
     "SNAPSHOT_EXPORTED_AT": "2026-10-17T16:13:00.355Z"
   },
   "hyperdrive": [
