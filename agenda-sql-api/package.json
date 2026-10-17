@@ -1,0 +1,20 @@
+{
+  "name": "tech-2d-agenda-sql",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node node_modules/wrangler/bin/wrangler.js deploy --dry-run",
+    "db:check": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js check",
+    "db:status": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js status",
+    "db:migrate": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js migrate",
+    "export": "node scripts/export-firestore.js",
+    "import": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js",
+    "verify": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js --verify",
+    "deploy": "node node_modules/wrangler/bin/wrangler.js deploy"
+  },
+  "dependencies": { "firebase-admin": "^14.5.0", "jose": "^6.1.0", "pg": "^8.16.3" },
+  "devDependencies": { "@electric-sql/pglite": "^0.3.14", "wrangler": "4.145.0" }
+}

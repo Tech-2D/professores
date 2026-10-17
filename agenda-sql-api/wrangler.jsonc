@@ -1,0 +1,17 @@
+{
+  "name": "tech-2d-agenda-sql",
+  "account_id": "67606a241ef48fd5694950bd65a3d33e",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "d-tech-8555e",
+    "WRITES_ENABLED": "false",
+    "MIGRATION_READY": "false"
+  },
+  // Add HYPERDRIVE binding after configuring the SQL-only database user and TLS.
+  // Disable Hyperdrive query caching to guarantee read-after-write consistency.
+  "observability": { "enabled": false }
+}
