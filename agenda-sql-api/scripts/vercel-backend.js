@@ -2,7 +2,7 @@ import {spawn} from 'node:child_process'
 import {reportFailure} from './connection.js'
 try {
   const [mode,cli]=process.argv.slice(2)
-  if(process.argv.length!==4 || !['maintenance','sql','firestore'].includes(mode) || !cli)throw Error('BACKEND_AND_CLI_REQUIRED')
+  if(process.argv.length!==4 || !['maintenance','readonly','sql','firestore'].includes(mode) || !cli)throw Error('BACKEND_AND_CLI_REQUIRED')
   await new Promise((resolve,reject)=>{
     const child=spawn(process.execPath,[cli,'env','add','DATA_BACKEND','production','--no-sensitive','--force','--yes','--scope','team_8bTwNsHgFYeutwGCFbp6PnFz','--project','prj_sGjz4vGVN2I8k0QUMbaEmCrzQsRd'],{cwd:new URL('../../auth-email-api/',import.meta.url),windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,VERCEL_TELEMETRY_DISABLED:'1'}})
     child.stdout.resume();child.stderr.resume()
