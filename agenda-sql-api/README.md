@@ -33,6 +33,7 @@ npm run check
 npm run db:check
 npm run db:migrate
 npm run db:status
+npm run db:runtime
 ```
 
 `db:migrate` cria somente o esquema `tech2d` e tabelas novas, em transação. Não apaga tabelas nem dados existentes. Se já existir um esquema com esse nome de outra aplicação, não executar antes de conferi-lo.
@@ -86,6 +87,18 @@ Representantes não gerenciam outras turmas ou eventos gerais nesta API; superad
 7. Inicialmente publicar com `MIGRATION_READY=false`, `WRITES_ENABLED=false`. Não alterar DNS/URL do frontend até os testes remotos e a conferência dos dados.
 8. Avaliar limites e custos do Aiven, Hyperdrive e Workers; não ativar plano pago ou prometer capacidade ilimitada.
 
+### Publicação autorizada e protegida
+
+O usuário autorizou a criação do login SQL limitado `tech2d_api` e seu envio exclusivamente ao Hyperdrive da conta Tech-2D, vinculado ao Worker `tech-2d-agenda-sql`.
+
+- `npm run db:runtime` cria/confere o papel limitado e valida a conexão, sem imprimir senha. A conexão fica em `firebase-credentials/aiven-runtime.env`, ignorada pelo Git. Não regenera nem substitui senha de um papel preexistente desconhecido.
+- O perfil Wrangler `tech-2d` fica vinculado somente a este diretório. Outras contas/perfis da máquina são preservados.
+- `npm run cloudflare:setup` é prévia; `npm run cloudflare:setup -- --execute` confirma acesso à conta `67606a241ef48fd5694950bd65a3d33e` antes de ler a conexão SQL.
+- O comando captura o token OAuth em memória pelo Wrangler, com logs em disco desativados nessa chamada; não usa tokens de outra conta herdados do ambiente.
+- A conexão Hyperdrive usa somente `tech2d_api`, certificado CA verificado (`verify-full`), cache SQL desativado e limite de cinco conexões. Não muda configurações divergentes já existentes sem revisão.
+- Após sucesso, o ID público do Hyperdrive pode ser adicionado ao binding `HYPERDRIVE` em `wrangler.jsonc`. O arquivo `.wrangler/sql-connection.json` registra IDs e opções não secretas, sem URI ou senha.
+- É seguro publicar inicialmente com os flags `MIGRATION_READY=false` e `WRITES_ENABLED=false`: catálogos/escritas retornam 503 de preparação. Não ligar esses flags antes da verificação e corte.
+
 ## Ainda falta para a migração completa
 
 - Confirmar conexão e preparar/importar/verificar o banco real.
@@ -110,5 +123,10 @@ O projeto é um ponto de partida testado, não uma declaração de que a migraç
 - Esquema `tech2d`: criado, sem alteração de dados da origem.
 - Testes locais SQL/PGlite: 15 passando; bundle Worker validado.
 - Exportação atual: bloqueada pelo Firestore com HTTP 429 `RESOURCE_EXHAUSTED`, inclusive na listagem inicial de coleções. Não há snapshot completo desta execução.
-- Cloudflare: CLI conectada a uma conta diferente da Tech-2D. Nenhuma publicação feita nessa conta.
+- A primeira conferência da CLI encontrou outra conta; a publicação foi bloqueada nela. Depois, o perfil separado `tech-2d` foi autenticado e a conta Tech-2D foi confirmada.
 - Frontends e serviços atuais: não redirecionados. Nenhum dado de produção foi importado nesta etapa.
+- Usuário `tech2d_api` criado/conferido no Aiven com teste de login TLS. Privilégios proibidos conferidos: sem leitura de `firestore_documents`, sem alteração de papéis/catálogos, sem DELETE em atividades e sem CREATE no esquema.
+- Hyperdrive criado e conferido na conta autorizada: `aeba609cd9e94b4eb2ac5f0266b01ac4`. CA validada, `verify-full`, cache desativado, cinco conexões, usuário SQL dedicado. Reexecução confirmou a configuração sem duplicar recursos.
+- Worker publicado: [tech-2d-agenda-sql](https://tech-2d-agenda-sql.tech-2d-auth-email.workers.dev/api/health). Versão `7d32e004-389d-4dc8-8dd5-1492fca4cb17`.
+- Teste externo: `/api/health` retorna 200, `databaseConfigured=true`, `ready=false`, `writesEnabled=false`; `/api/catalog/agenda` retorna o 503 esperado de migração não validada. O health confirma a presença do binding, não executa uma consulta ao banco a cada visita.
+- 19 testes locais passando e bundle Worker validado. O site continua usando o backend antigo e não foi ativado plano pago.

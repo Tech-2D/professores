@@ -36,7 +36,7 @@ export function createHandler({ connect = connectDatabase, verify = verifySessio
       return new Response(null, { status: 204, headers })
     }
     const url = new URL(request.url)
-    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true' })
+    if (url.pathname === '/api/health' && request.method === 'GET') return reply({ ok: true, ready: env.MIGRATION_READY === 'true', writesEnabled: env.WRITES_ENABLED === 'true', databaseConfigured: Boolean(env.HYPERDRIVE?.connectionString) })
     const activity = url.pathname.match(/^\/api\/activities\/([A-Za-z0-9_-]{1,128})$/)
     if (!activity && !supported.has(url.pathname)) return reply({ message: 'Rota não encontrada.' }, 404)
     const allowed = activity ? ['GET', 'PATCH'] : url.pathname === '/api/activities' ? ['POST'] : ['GET']

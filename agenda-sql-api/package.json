@@ -10,6 +10,8 @@
     "db:check": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js check",
     "db:status": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js status",
     "db:migrate": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/database.js migrate",
+    "db:runtime": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/provision-runtime.js",
+    "cloudflare:setup": "node scripts/provision-cloudflare.js",
     "export": "node scripts/export-firestore.js",
     "import": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js",
     "verify": "node --env-file-if-exists=../firebase-credentials/aiven-postgres.env scripts/import-firestore.js --verify",

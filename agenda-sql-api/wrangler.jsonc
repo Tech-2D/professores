@@ -11,7 +11,9 @@
     "WRITES_ENABLED": "false",
     "MIGRATION_READY": "false"
   },
-  // Add HYPERDRIVE binding after configuring the SQL-only database user and TLS.
-  // Disable Hyperdrive query caching to guarantee read-after-write consistency.
+  "hyperdrive": [
+    { "binding": "HYPERDRIVE", "id": "aeba609cd9e94b4eb2ac5f0266b01ac4" }
+  ],
+  // Origin uses the dedicated SQL user, verify-full TLS and query caching disabled.
   "observability": { "enabled": false }
 }
